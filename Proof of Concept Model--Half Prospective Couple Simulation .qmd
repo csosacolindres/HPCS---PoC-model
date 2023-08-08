@@ -130,10 +130,10 @@ to do: 1-4.
 hdata<-read.csv("CAREER1 PROCESSED Data 01172020 104258.csv")
 
 #Remove unnecessary columns from the human data
-hdata<-hdata[,c(1, 3:10, 235:250, 251:266, 267:282, 283:298, 299:314, 345:360)]
+hdata<-hdata[,c(1, 3:10, 235:250, 345:360)]
 
 #Make sure there's no missing information
-hdata<-hdata[complete.cases(hdata[,c(10:25, 26:41, 42:57, 58:73, 74:89, 90:105)]),]
+hdata<-hdata[complete.cases(hdata[,c(10:25, 26:41)]),]
 
 
 ```
@@ -155,14 +155,14 @@ popsize <- 10
 agentGenerate<-function(popsize, sex, data){
   
   #Generate agents with trait and preferences by resampling from the human data
-  agents <-apply(data[, c(10:25, 26:41, 42:57, 58:73, 74:89, 90:105)], 2, function(x) 
+  agents <-apply(data[, c(10:25, 26:41)], 2, function(x) 
     sample(x, popsize, replace=T))
   
   #Standardize ratings
   agents <-t(apply(agents, 2, scale))
   
   #Create a copy of the human dataframe including just the required variables 
-  hdata1 <- data[, as.numeric(c(10:25, 26:41, 42:57, 58:73, 74:89, 90:105))]
+  hdata1 <- data[, as.numeric(c(10:25, 26:41))]
   
   #Calculates the correlation matrix for traits and preferences in the real data
   hdata1cor <-cor(hdata1)
@@ -173,7 +173,7 @@ agentGenerate<-function(popsize, sex, data){
   
   #Multiplies the scaled agent data by the Cholesky decomposition
   #This imposes approximately the correct covariance matrix
-  agents <-t(hdata1chol %*% agents[c(1:96), ])
+  agents <-t(hdata1chol %*% agents)
   
   #Add the mean of each variable to the simulated data to re-center data
   agents <-sapply(1:ncol(agents), function(x) (sd(hdata1[, x])*agents[,x]) + mean(hdata1[, x]))
@@ -215,8 +215,8 @@ sMales <- agentGenerate(popsize, 1, hdata[hdata$sex==1,])
 sFemales <- agentGenerate(popsize, 0, hdata[hdata$sex==0,])
 
 #Give each agent a unique PIN
-sMales$PIN<-sample(1:nrow(sMales),nrow(sMales),replace=F)
-sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),replace=F)
+sMales$PIN<-sample(1:nrow(sMales),nrow(sMales),replace=F) + popsize*2
+sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),replace=F) + popsize*2
 
 
 
@@ -235,451 +235,15 @@ sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),r
 ```{r}
 
 #Mate value calculation#
-mvcalc <- function(ideal, min, max, imp, rank, traits, type = "euc", power=2){
+mvcalc <- function(ideal, traits){
   #ideal is ideal preferences
-  #min is minimum preferences
-  #max is maximum preference
-  #imp is rated importance
-  #rank is rated importance
   #traits is actual trait values
   
-  if(type == "euc"){
     #Calculates the Euclidean distance between the agent's preferences and each mate's traits
     #Transforms this distance such that positive values are more attractive by multiplying by -1 and
     #adding 1 plus the maximum possible Euclidean distance
     mv <- apply(traits, 1, function(x)
       10*(-1*(dist(rbind(ideal, x))) + sqrt(10^2*16))/sqrt(10^2*16))
-    
-    }
-  
-  
-  
-  
-  if(type=="euc_imp"){
-    mv<-apply(traits,1, function(x) 
-      10*(-1*(dist(rbind(imp*ideal,imp*x))) + 
-            sqrt(sum((imp*10)^2,na.rm=T)))/sqrt(sum((imp*10)^2,na.rm=T)))
-    
-    }
-  
-  
-  
-  
-  if(type=="manhat"){
-  #Calculates the manhatlidean distance between the agent's preferences and each mate's traits
-  #Transforms this distance such that positive values are more attractive by multiplying by -1  and
-  #adding 1 plus the maximum possible manhatlidean distance
-    mv<-apply(traits,1, function(x) 
-      10*(-1*(dist(rbind(ideal,x),method="manhattan"))+sum(10*16))/sum(10*16))
-    
-    }
-  
-  
-  
-  
-  if(type=="manhat_imp"){
-    mv<-apply(traits,1,function(x) 
-      10*(-1*(dist(rbind(imp*ideal,imp*x),method="manhattan")) + 
-            (sum((imp*10),na.rm=T)))/(sum((imp*10),na.rm=T)))
-    
-    }
-  
-  
-  
-  
-  if(type=="mink"){
-  #Calculates the Euclidean distance between the agent's preferences and each mate's traits
-  #Transforms this distance such that positive values are more attractive by multiplying by -1 and
-  #adding 1 plus the maximum possible Euclidean distance
-    mv<-apply(traits,1,function(x) 
-      10*(-1*(dist(rbind(ideal,x),method="minkowski",p=power)) +
-            (10^power*16)^(1/power))/(10^power*16)^(1/power))
-    
-    }
-  
-  
-  
-  
-  if(type=="mink_imp"){
-    mv<-apply(traits,1,function(x) 
-      10*(-1*(dist(rbind(imp*ideal,imp*x),method="minkowski",p=power)) + 
-            (sum((imp*10)^power,na.rm=T)^(1/power)))/(sum((imp*10)^power,na.rm=T)^(1/power)))
-  
-    }
-  
-  
-  
-  
-  if(type=="sum"){
-    mv<-apply(traits,1,function(x) sum(x,na.rm=T))
-    
-    }
-  
-  
-  
-  
-  if(type=="weightedsum"){
-    mv<-apply(traits,1,function(x) sum(imp*x,na.rm=T))
-    
-    }
-  
-  
-  
-  
-  if(type=="asp_range"){
-  #First, find the order in which preferences should be evaluated
-    rankorder<-order(rank)
-    
-  #The preference to be considered; starting with preference once
-    r<-1
-    
-  #The mates to be considered, starting with all mates
-    nmates<-1:nrow(traits)
-
-  #As long as there are some mates left to be considered and some preferences left to be
-  #considered...
-    while(length(nmates)>0 & r<17){
-  
-  #Find out of all remaining mates those that satisfy the current preference threshold
-      viablemates<-traits[nmates,rankorder[r]] >= 
-        min[rankorder[r]] & traits[nmates,rankorder[r]]<=max[rankorder[r]]
-      
-  #If there are more than 0 of these...
-      if(sum(viablemates,na.rm=T)>0){
-  
-        #Cull the pool of eligible mates down to those that satisfied this threshold
-        nmates<-nmates[viablemates]
-        
-        #Eliminate any NA cases
-        nmates<-nmates[complete.cases(nmates)]
-        
-        #And move on to the next threshold
-        r<-r+1
-        
-      } else{
-        #If there are no mates who meet the current threshold...
-        #...stop the loop and proceed with all current eligible mates
-        r<-17
-      }
-    }
-    #Set the mate value of everyone to 0
-    mv<-rep(0,nrow(traits))
-    
-    #But then set the mate value of eligible mates to 10
-    mv[nmates]<-10/length(nmates)
-    
-    }
-  
-  
-  
-  
-  if(type=="asp_min"){
-    #First, find the order in which preferences should be evaluated
-    rankorder<-order(rank)
-    
-    #The preference to be considered; starting with preference once
-    r<-1
-    
-    #The mates to be considered, starting with all mates
-    nmates<-1:nrow(traits)
-    
-    #As long as there are some mates left to be considered and some preferences left to be considered...
-    while(length(nmates)>0 & r<17){
-      
-      #Find out of all remaining mates those that satisfy the current preference threshold
-      viablemates<-traits[nmates,rankorder[r]]>=min[rankorder[r]]
-      
-      #If there are more than 0 of these...
-      if(sum(viablemates,na.rm=T)>0){
-        #Cull the pool of eligible mates down to those that satisfied this threshold
-        nmates<-nmates[viablemates]
-        
-        #Eliminate any NA cases
-        nmates<-nmates[complete.cases(nmates)]
-        
-        #And move on to the next threshold
-        r<-r+1
-      } else{
-        #If there are no mates who meet the current threshold...
-        #...stop the loop and proceed with all current eligible mates
-        r<-17
-      }
-    }
-    
-    #Set the mate value of everyone to 0
-    mv<-rep(0,nrow(traits))
-    
-    #But then set the mate value of eligible mates to 10
-    mv[nmates]<-10/length(nmates)
-    
-    }
-  
-  
-  
-  
-  if(type=="asp_max"){
-    #First, find the order in which preferences should be evaluated
-    rankorder<-order(rank)
-    
-    #The preference to be considered; starting with preference once
-    r<-1
-    
-    #The mates to be considered, starting with all mates
-    nmates<-1:nrow(traits)
-    
-    #As long as there are some mates left to be considered and some preferences left to be considered...
-    while(length(nmates)>0 & r<17){
-      
-      #Find out of all remaining mates those that satisfy the current preference threshold
-      viablemates<-traits[nmates,rankorder[r]]<=max[rankorder[r]]
-      
-      #If there are more than 0 of these...
-      if(sum(viablemates,na.rm=T)>0){
-        #Cull the pool of eligible mates down to those that satisfied this threshold
-        nmates<-nmates[viablemates]
-        
-        #Eliminate any NA cases
-        nmates<-nmates[complete.cases(nmates)]
-        
-        #And move on to the next threshold
-        r<-r+1
-      } else{
-        #If there are no mates who meet the current threshold...
-        #...stop the loop and proceed with all current eligible mates
-        r<-17
-      }
-    }
-    #Set the mate value of everyone to 0
-    mv<-rep(0,nrow(traits))
-    
-    #But then set the mate value of eligible mates to 10
-    mv[nmates]<-10/length(nmates)
-    
-    }
-  
-  
-  
-  
-  if(type=="asp_range_cont"){
-    #First, find the order in which preferences should be evaluated
-    rankorder<-order(rank)
-    
-    #The preference to be considered; starting with preference once
-    r<-1
-    
-    #The mates to be considered, starting with all mates
-    nmates<-1:nrow(traits)
-    
-    #Set the mate value of everyone to 0 to start
-    mv<-rep(0,nrow(traits))
-    
-    #As long as there are some mates left to be considered and some preferences left to be considered...
-    while(length(nmates)>0 & r<17){
-      
-      #Find out of all remaining mates those that satisfy the current preference threshold
-      viablemates<-traits[nmates,rankorder[r]] >= 
-        min[rankorder[r]] & traits[nmates,rankorder[r]]<=max[rankorder[r]]
-      
-      mv[nmates[viablemates]]<-r
-      
-      #If there are more than 0 of these...
-      if(sum(viablemates,na.rm=T)>0){
-        #Cull the pool of eligible mates down to those that satisfied this threshold
-        nmates<-nmates[viablemates]
-        
-        #Eliminate any NA cases
-        nmates<-nmates[complete.cases(nmates)]
-        
-        #And move on to the next threshold
-        r<-r+1
-      } else{
-        #If there are no mates who meet the current threshold...
-        #...stop the loop and proceed with all current eligible mates
-        r<-17
-      }
-    }
-    #But then set the mate value of eligible mates to 10
-    mv<-10*(mv/16)
-  
-    }
-  
-  
-
-  
-  if(type=="asp_min_cont"){
-    #First, find the order in which preferences should be evaluated
-    rankorder<-order(rank)
-    
-    #The preference to be considered; starting with preference once
-    r<-1
-    
-    #The mates to be considered, starting with all mates
-    nmates<-1:nrow(traits)
-    
-    #Set the mate value of everyone to 0 to start
-    mv<-rep(0,nrow(traits))
-    
-    #As long as there are some mates left to be considered and some preferences left to be considered...
-    while(length(nmates)>0 & r<17){
-      #Find out of all remaining mates those that satisfy the current preference threshold
-      viablemates<-traits[nmates,rankorder[r]]>=min[rankorder[r]]
-      
-      mv[nmates[viablemates]]<-r
-      
-      #If there are more than 0 of these...
-      if(sum(viablemates,na.rm=T)>0){
-        #Cull the pool of eligible mates down to those that satisfied this threshold
-        nmates<-nmates[viablemates]
-        
-        #Eliminate any NA cases
-        nmates<-nmates[complete.cases(nmates)]
-        
-        #And move on to the next threshold
-        r<-r+1
-      } else{
-        #If there are no mates who meet the current threshold...
-        #...stop the loop and proceed with all current eligible mates
-        r<-17
-      }
-    }
-    #But then set the mate value of eligible mates to 10
-    mv<-10*(mv/16)
-  
-    }
-  
-  
-  
-  
-  if(type=="asp_max_cont"){
-    #First, find the order in which preferences should be evaluated
-    rankorder<-order(rank)
-    
-    #The preference to be considered; starting with preference once
-    r<-1
-    
-    #The mates to be considered, starting with all mates
-    nmates<-1:nrow(traits)
-    
-    #Set the mate value of everyone to 0 to start
-    mv<-rep(0,nrow(traits))
-    
-    #As long as there are some mates left to be considered and some preferences left to be considered...
-    while(length(nmates)>0 & r<17){
-      #Find out of all remaining mates those that satisfy the current preference threshold
-      viablemates<-traits[nmates,rankorder[r]]<=max[rankorder[r]]
-      
-      mv[nmates[viablemates]]<-r
-      
-      #If there are more than 0 of these...
-      if(sum(viablemates,na.rm=T)>0){
-        #Cull the pool of eligible mates down to those that satisfied this threshold
-        nmates<-nmates[viablemates]
-        
-        #Eliminate any NA cases
-        nmates<-nmates[complete.cases(nmates)]
-        
-        #And move on to the next threshold
-        r<-r+1
-      } else{
-        #If there are no mates who meet the current threshold...
-        #...stop the loop and proceed with all current eligible mates
-        r<-17
-      }
-    }
-    #But then set the mate value of eligible mates to 10
-    mv<-10*(mv/16)
-  
-    }
-  
-  
-  
-  
-  if(type=="asp_range_total"){
-    mv<-10*rowMeans(sapply(1:16,function(r) traits[,r]>=min[r] & traits[,r]<=max[r]),na.rm=T)
-  
-    }
-  
-  
-  
-  
-  if(type=="asp_min_total"){
-    mv<-10*rowMeans(sapply(1:16,function(r) traits[,r]>=min[r]),na.rm=T)
-  
-    }
-  
-  
-  
-  
-  if(type=="asp_max_total"){
-    mv<-10*rowMeans(sapply(1:16,function(r) traits[,r]<=max[r]),na.rm=T)
-  
-    }
-  
-  
-  
-  
-  if(type=="exceed_ideal"){
-    exceed<-apply(traits,1,function(x) 
-      sum(ifelse((x-as.numeric(ideal))>0,(x-as.numeric(ideal)),0),na.rm=T))
-    
-    mv<-exceed/(10*16)
-  
-    }
-  
-  
-  
-  
-  if(type=="exceed_min"){
-    exceed<-apply(traits,1,function(x) 
-      sum(ifelse((x-as.numeric(min))>0,(x-as.numeric(min)),0),na.rm=T))
-    
-    mv<-exceed/(10*16)
-  
-    }
-  
-  
-  
-  
-  if(type=="cos"){
-    mv<-apply(traits,1,function(x) cosine(x,ideal,use="complete.obs"))
-    
-    mv<-5*(mv+1)
-  
-    }
-  
-  
-  
-  
-  if(type=="mink_asp_min"){
-    #Calculates the Euclidean distance between the agent's preferences and each mate's traits
-    #Transforms this distance such that positive values are more attractive by multiplying by -1 and adding 1 plus the maximum possible Euclidean distance
-    mv<-apply(traits,1,function(x) 
-      10*(-1*(dist(rbind(ideal,x),method="minkowski",p=power))+
-            (10^power*16)^(1/power))/(10^power*16)^(1/power))
-    
-    aspcheck<-rowSums(sapply(1:16,function(r) traits[,r]>=min[r]),na.rm=T)>=8
-    
-    mv<-ifelse(aspcheck==1,mv,mv*.9)
-  
-    }
-  
-  
-  
-  
-  if(type=="maha"){
-    #Compute the maximum possible Mahalanobis difference
-    mahamax<-MDmiss(matrix(0,2,16),rep(10,16),cov(traits,use="pairwise.complete.obs"))[1]
-    
-    #Calculate the difference between ideals and partner trait values
-    diffs<-t(apply(traits,1,function(x) x-ideal))
-    
-    #Compute the Mahalanobis distance between preferences and traits for all potential mates
-    mv<-MDmiss(diffs,rep(0,16),cov(diffs,use="pairwise.complete.obs"))
-    
-    #Scale distances
-    mv<-10*(-1*mv+mahamax)/mahamax
-    
-    }
   
   
   return(mv)
@@ -701,41 +265,29 @@ resample <- function(x,...){if(length(x)==1) x else sample(x,...)}
 ```{r}
 
 #Mate Choice#
-matechoice <- function(females, males, mca="ram", int_type="euc", power = 2){
+matechoice <- function(females, males, mca="ram"){
   
   ######Computing Attraction######
   #mvcalc <- function(ideal, min, max, imp, rank, traits, type = "euc", power=2)
   
   # Males #
   #Calculate how attracted each male is to each female
-  maleattmatrix <- t(apply(males,1,function(q) 
-    mvcalc(as.numeric(q[2:17]), 
-           as.numeric(q[18:33]), 
-           as.numeric(q[34:49]), 
-           as.numeric(q[50:65]), 
-           as.numeric(q[66:81]), 
-           females[,c(82:97)], 
-           type = int_type,
-           power = power)))
+  maleattmatrix <- t(apply(males, 1, function(q)
+    mvcalc(as.numeric(q[2:17]),
+           females[, c(18:33)])))
   
-  colnames(maleattmatrix)<-females$PIN
-  rownames(maleattmatrix)<-males$PIN
+  colnames(maleattmatrix) <- females$PIN
+  rownames(maleattmatrix) <- males$PIN
   
   
   # Females #
   #Calculate how attracted each female is to each male
-  femaleattmatrix <- t(apply(females,1,function(q) 
+  femaleattmatrix <- t(apply(females, 1, function(q)
     mvcalc(as.numeric(q[2:17]),
-           as.numeric(q[18:33]),
-           as.numeric(q[34:49]),
-           as.numeric(q[50:65]),
-           as.numeric(q[66:81]),
-           males[,c(82:97)],
-           type = int_type,
-           power=power)))
+           males[, c(18:33)])))
   
-  colnames(femaleattmatrix)<-males$PIN
-  rownames(femaleattmatrix)<-females$PIN
+  colnames(femaleattmatrix) <- males$PIN
+  rownames(femaleattmatrix) <- females$PIN
   
   
   
@@ -746,202 +298,217 @@ matechoice <- function(females, males, mca="ram", int_type="euc", power = 2){
   
   ###### Mate Choice ######
   
-  if(mca=="atm"){
-    atmrepacc <- matrix(NA, nrow(females), 10)
+  if (mca == "atm") {
+    #Starting dataframes for storing a lot of mating information
+    mthresholds <- data.frame(
+      "PIN" = males$PIN,
+      "thresh" = 5,
+      "mateatt" = 0,
+      "matepin" = 0,
+      "dates" = 0,
+      "avail" = 1
+    )
     
-    for(r in 1:10){
-      #Starting dataframes for storing a lot of mating information
-      mthresholds <- data.frame("PIN" = males$PIN,
-                                "thresh" = 5,
-                                "mateatt" = 0,
-                                "matepin" = 0,
-                                "dates" = 0,
-                                "avail"=1)
+    fthresholds <- data.frame(
+      "PIN" = females$PIN,
+      "thresh" = 5,
+      "mateatt" = 0,
+      "matepin" = 0,
+      "dates" = 0,
+      "avail" = 1
+    )
+    
+    #Create a variable to keep track of whether the agent couples are changing
+    same <- 0
+    
+    #Create variable to keep track of how long the loop is running to prevent infinite loops
+    steps <- 0
+    
+    #Create a variable to set the maximum number of loops
+    maxsteps <- nrow(females) * 2
+    
+    #Create variable to termine while loop; the value will depend on the end conditions
+    endcheck <- 0
+    
+    
+    while (endcheck == 0) {
+      #Store each person's mate at the start of the loop (useful later)
+      mstartmate <- mthresholds$matepin
+      fstartmate <- fthresholds$matepin
       
-      fthresholds <- data.frame("PIN" = females$PIN,
-                                "thresh" = 5,
-                                "mateatt" = 0,
-                                "matepin" = 0,
-                                "dates" = 0,
-                                "avail"=1)
+      #Randomly scramble the male agents
+      #Females will go on "dates" with males in order of these vectrors
+      mdate <- resample(mthresholds$PIN[mthresholds$avail == 1],
+                        length(mthresholds$PIN[mthresholds$avail == 1]))
       
-      #Create a variable to keep track of whether the agent couples are changing
-      same <- 0
+      fdate <- resample(fthresholds$PIN[fthresholds$avail == 1],
+                        length(fthresholds$PIN[fthresholds$avail == 1]))
       
-      #Create variable to keep track of how long the loop is running to prevent infinite loops
-      steps <- 0
+      #Just locates each dating partner's position in the thresholds dataframe
+      #Very handy later on
+      mpos <- match(mdate, mthresholds$PIN)
+      fpos <- match(fdate, fthresholds$PIN)
       
-      #Create a variable to set the maximum number of loops
-      maxsteps <- nrow(females)*2
+      #Calculate how attracted each male is to his female date
+      matts <- sapply(1:length(mdate), function(x)
+        maleattmatrix[rownames(maleattmatrix) == mdate[x],
+                      colnames(maleattmatrix) == fdate[x]])
       
-      #Create variable to termine while loop; the value will depend on the end conditions
-      endcheck <- 0
+      #Calculate how attracted each female is to her male date
+      fatts <- sapply(1:length(fdate), function(x)
+        femaleattmatrix[rownames(femaleattmatrix) == fdate[x],
+                        colnames(femaleattmatrix) == mdate[x]])
+      
+      #Have each agent make offers to only those potential mates who meet or surpass their current threshold
+      moffers <- matts >= mthresholds$thresh[mpos]
+      foffers <- fatts >= fthresholds$thresh[fpos]
       
       
-      while(endcheck==0){
-        
-        #Store each person's mate at the start of the loop (useful later)
-        mstartmate <-mthresholds$matepin
-        fstartmate <-fthresholds$matepin
-        
-        #Randomly scramble the male agents
-        #Females will go on "dates" with males in order of these vectrors
-        mdate <-resample(mthresholds$PIN[mthresholds$avail==1], 
-                          length(mthresholds$PIN[mthresholds$avail==1]))
-        
-        fdate <-resample(fthresholds$PIN[fthresholds$avail==1],
-                          length(fthresholds$PIN[fthresholds$avail==1]))
-        
-        #Just locates each dating partner's position in the thresholds dataframe
-        #Very handy later on
-        mpos <-match(mdate, mthresholds$PIN)
-        fpos <-match(fdate, fthresholds$PIN)
-        
-        #Calculate how attracted each male is to his female date
-        matts <-sapply(1:length(mdate), function(x) 
-          maleattmatrix[rownames(maleattmatrix) == mdate[x],
-                        colnames(maleattmatrix) == fdate[x]])
-        
-        #Calculate how attracted each female is to her male date
-        fatts <-sapply(1:length(fdate), function(x) 
-          femaleattmatrix[rownames(femaleattmatrix) == fdate[x],
-                          colnames(femaleattmatrix) == mdate[x]])
-        
-        #Have each agent make offers to only those potential mates who meet or surpass their current threshold
-        moffers <-matts >= mthresholds$thresh[mpos]
-        foffers <-fatts >= fthresholds$thresh[fpos]
-        
-        
-        #Loop through males
-        for(u in 1:length(mdate)){
-          #If a male receives an offer from a female more attractive than his current threshold...
-          if(foffers[u] == T & matts[u] > mthresholds$thresh[mpos[u]]){
-            #...He moves his threshold 1% closer to her attractiveness
-            mthresholds$thresh[mpos[u]] <-mthresholds$thresh[mpos[u]] +
-              .05*(matts[u] - mthresholds$thresh[mpos[u]])
-            
-            } else if(foffers[u] == F & mthresholds$thresh[mpos[u]] > matts[u]){
-            #Or if a male is rejected by a female whose attractiveness is below his current threshold...
-            
-            #...he lowers his threshold 1% closer to her attractiveness
-            mthresholds$thresh[mpos[u]] <-mthresholds$thresh[mpos[u]] +
-              .05*(matts[u] - mthresholds$thresh[mpos[u]])
+      #Loop through males
+      for (u in 1:length(mdate)) {
+        #If a male receives an offer from a female more attractive than his current threshold...
+        if (foffers[u] == T &
+            matts[u] > mthresholds$thresh[mpos[u]]) {
+          #...He moves his threshold 1% closer to her attractiveness
+          mthresholds$thresh[mpos[u]] <-
+            mthresholds$thresh[mpos[u]] +
+            .05 * (matts[u] - mthresholds$thresh[mpos[u]])
           
-            } else {
-            #Otherwise, he keeps his threshold the same
-            mthresholds$thresh[mpos[u]]
-          }
-        }
-        
-        
-      
-        #Females do the same as males
-        for(u in 1:length(fdate)){
-          #If a female receives an offer from a male more attractive than her current threshold...
-          if(moffers[u] == T & fatts[u] > fthresholds$thresh[fpos[u]]){
-            #...She moves her threshold 1% closer to his attractiveness
-            fthresholds$thresh[fpos[u]] <-fthresholds$thresh[fpos[u]] +
-              .05*(fatts[u]-fthresholds$thresh[fpos[u]])
-            
-          } else if(moffers[u] == F & fthresholds$thresh[fpos[u]] > fatts[u]){
-            #Or if a female is rejected by a male whose attractiveness is below her current threshold...
-            
-            #...she lowers her threshold 1% closer to his attractiveness
-            fthresholds$thresh[fpos[u]] <-fthresholds$thresh[fpos[u]] +
-              .05*(fatts[u]-fthresholds$thresh[fpos[u]])
-            
-          } else {
-            #Otherwise, she keeps her threshold the same
-            fthresholds$thresh[fpos[u]]
-          }
-        }
-        
-        
-        
-        #Determine which agents have made "real" mutual offer
-        #An offer is mutual only if both agents proposed and both agents would prefer their proposal partner to their current partner
-        mutoffers <-moffers & foffers & matts > 
-          mthresholds$mateatt[mpos] & fatts > fthresholds$mateatt[fpos]
-        
-        #Loop through mutual offers...
-        for(u in 1:length(mutoffers)){
-          #If an agent couple has a mutual offer
-          if(mutoffers[u] == T){
-            #Have each agent break up with their current partner
-            fthresholds$matepin[fthresholds$PIN == mthresholds$matepin[mpos[u]]] <-0
-            mthresholds$matepin[mthresholds$PIN == fthresholds$matepin[fpos[u]]] <-0
-            
-            #And pair with their proposal partner
-            mthresholds$matepin[mpos[u]] <-fdate[u]
-            fthresholds$matepin[fpos[u]] <-mdate[u]
-          }
-        }
-        
-        #Determine how attracted each agent is to their current partner
-        #Not the most efficient, but gets the job done for now
-        mthresholds$mateatt <-sapply(1:nrow(males), function(x) 
-          ifelse(mthresholds$matepin[x]!=0,
-                 maleattmatrix[x,colnames(maleattmatrix) == mthresholds$matepin[x]], 0))
-        
-        fthresholds$mateatt <-sapply(1:nrow(females), function(x) 
-          ifelse(fthresholds$matepin[x]!=0,
-                 femaleattmatrix[x,colnames(femaleattmatrix) == fthresholds$matepin[x]],0))
-        
-        #Increment how many "dates" each agent has been on with their current partner
-        #If an agent is dumped, their date count is reset to 0
-        mthresholds$dates <-ifelse(mthresholds$matepin == 0, 0, 
-                                   ifelse(mthresholds$matepin == mstartmate, 
-                                          mthresholds$dates+1, 1))
-        
-        fthresholds$dates <-ifelse(fthresholds$matepin == 0, 0,
-                                   ifelse(fthresholds$matepin == fstartmate,
-                                          fthresholds$dates+1,1))
-        
-        
-        #Remove an agent from the market if they have been with their current partner for long enough
-        mthresholds$avail <-ifelse(mthresholds$dates >= 50, 0, 1)
-        fthresholds$avail <-ifelse(fthresholds$dates >= 50, 0, 1)
-        
-        #Determine whether the agent couple have changed after this iteration
-        #If not, increment the "same" variable by 1
-        #If so, reset the same variable to 0
-        same <-ifelse(sum(mthresholds$matepin != mstartmate) == 0, same+1, 0)
-        
-        #Increment the number of steps by one
-        steps <-steps+1
-        
-        #Terminate the loop if there hasn't been a change in 20 steps
-        if(same >= 5){
-          endcheck <-1
-        }
-        
-        #Terminate the loop if there are no available mates
-        if(sum(mthresholds$avail) == 0 | sum(fthresholds$avail) == 0){
-          endcheck <-1
-        }
-        
-        #Terminate the loop if it has been running too long
-        if(steps > maxsteps){
-          endcheck <-1
+        } else if (foffers[u] == F &
+                   mthresholds$thresh[mpos[u]] > matts[u]) {
+          #Or if a male is rejected by a female whose attractiveness is below his current threshold...
+          
+          #...he lowers his threshold 1% closer to her attractiveness
+          mthresholds$thresh[mpos[u]] <-
+            mthresholds$thresh[mpos[u]] +
+            .05 * (matts[u] - mthresholds$thresh[mpos[u]])
+          
+        } else {
+          #Otherwise, he keeps his threshold the same
+          mthresholds$thresh[mpos[u]]
         }
       }
       
+      
+      
+      #Females do the same as males
+      for (u in 1:length(fdate)) {
+        #If a female receives an offer from a male more attractive than her current threshold...
+        if (moffers[u] == T &
+            fatts[u] > fthresholds$thresh[fpos[u]]) {
+          #...She moves her threshold 1% closer to his attractiveness
+          fthresholds$thresh[fpos[u]] <-
+            fthresholds$thresh[fpos[u]] +
+            .05 * (fatts[u] - fthresholds$thresh[fpos[u]])
+          
+        } else if (moffers[u] == F &
+                   fthresholds$thresh[fpos[u]] > fatts[u]) {
+          #Or if a female is rejected by a male whose attractiveness is below her current threshold...
+          
+          #...she lowers her threshold 1% closer to his attractiveness
+          fthresholds$thresh[fpos[u]] <-
+            fthresholds$thresh[fpos[u]] +
+            .05 * (fatts[u] - fthresholds$thresh[fpos[u]])
+          
+        } else {
+          #Otherwise, she keeps her threshold the same
+          fthresholds$thresh[fpos[u]]
+        }
+      }
+      
+      
+      
+      #Determine which agents have made "real" mutual offer
+      #An offer is mutual only if both agents proposed and both agents would prefer their proposal partner to their current partner
+      mutoffers <- moffers & foffers & matts >
+        mthresholds$mateatt[mpos] &
+        fatts > fthresholds$mateatt[fpos]
+      
+      #Loop through mutual offers...
+      for (u in 1:length(mutoffers)) {
+        #If an agent couple has a mutual offer
+        if (mutoffers[u] == T) {
+          #Have each agent break up with their current partner
+          fthresholds$matepin[fthresholds$PIN == mthresholds$matepin[mpos[u]]] <-
+            0
+          mthresholds$matepin[mthresholds$PIN == fthresholds$matepin[fpos[u]]] <-
+            0
+          
+          #And pair with their proposal partner
+          mthresholds$matepin[mpos[u]] <- fdate[u]
+          fthresholds$matepin[fpos[u]] <- mdate[u]
+        }
+      }
+      
+      #Determine how attracted each agent is to their current partner
+      #Not the most efficient, but gets the job done for now
+      mthresholds$mateatt <- sapply(1:nrow(males), function(x)
+        ifelse(mthresholds$matepin[x] != 0,
+               maleattmatrix[x, colnames(maleattmatrix) == mthresholds$matepin[x]], 0))
+      
+      fthresholds$mateatt <- sapply(1:nrow(females), function(x)
+        ifelse(fthresholds$matepin[x] != 0,
+               femaleattmatrix[x, colnames(femaleattmatrix) == fthresholds$matepin[x]], 0))
+      
+      #Increment how many "dates" each agent has been on with their current partner
+      #If an agent is dumped, their date count is reset to 0
+      mthresholds$dates <- ifelse(
+        mthresholds$matepin == 0,
+        0,
+        ifelse(mthresholds$matepin == mstartmate,
+               mthresholds$dates + 1, 1)
+      )
+      
+      fthresholds$dates <- ifelse(
+        fthresholds$matepin == 0,
+        0,
+        ifelse(fthresholds$matepin == fstartmate,
+               fthresholds$dates + 1, 1)
+      )
+      
+      
+      #Remove an agent from the market if they have been with their current partner for long enough
+      mthresholds$avail <- ifelse(mthresholds$dates >= 50, 0, 1)
+      fthresholds$avail <- ifelse(fthresholds$dates >= 50, 0, 1)
+      
+      #Determine whether the agent couple have changed after this iteration
+      #If not, increment the "same" variable by 1
+      #If so, reset the same variable to 0
+      same <-
+        ifelse(sum(mthresholds$matepin != mstartmate) == 0, same + 1, 0)
+      
+      #Increment the number of steps by one
+      steps <- steps + 1
+      
+      #Terminate the loop if there hasn't been a change in 20 steps
+      if (same >= 5) {
+        endcheck <- 1
+      }
+      
+      #Terminate the loop if there are no available mates
+      if (sum(mthresholds$avail) == 0 |
+          sum(fthresholds$avail) == 0) {
+        endcheck <- 1
+      }
+      
+      #Terminate the loop if it has been running too long
+      if (steps > maxsteps) {
+        endcheck <- 1
+      }
     }
-    
-    atmacc <-mean(atmrepacc)
-    
     
     
     #Store the mate guessed by each model for each agent for females
-    females$modelguess <-rep(NA, nrow(females))
-
-    #Do the same for males
-    males$modelguess <-rep(NA, nrow(males))
-
-  
-    data2 <-rbind(females, males)
+    females$modelguess <- fthresholds$matepin
     
-
+    #Do the same for males
+    males$modelguess <- mthresholds$matepin
+    
+    
+    data2 <- rbind(females, males)
+    data2$modelguess[data2$modelguess == 0] <- NA
+    
+    
   }
   
   
@@ -953,105 +520,106 @@ matechoice <- function(females, males, mca="ram", int_type="euc", power = 2){
   
   
   
-  if(mca=="gsa"){
-    
+  if (mca == "gsa") {
     #A blank dataframe for storing the paired couples
-    pairs <-matrix(, 1, (ncol(males) + ncol(females)))
-    pairs <-as.data.frame(pairs)
+    pairs <- matrix(, 1, (ncol(males) + ncol(females)))
+    pairs <- as.data.frame(pairs)
     
     #Name the pairs dataframe for cbinding
-    colnames(pairs) <-c(colnames(females), colnames(males))
+    colnames(pairs) <- c(colnames(females), colnames(males))
     
     #A vector of male agents' partners
-    mpartner <-matrix(0, nrow(males), 1)
+    mpartner <- matrix(0, nrow(males), 1)
     
     #A vector of female agents' partners
-    fpartner <-matrix(0, nrow(females), 1)
+    fpartner <- matrix(0, nrow(females), 1)
     
     #A matrix of females have already rejected each male
-    mrejected <-matrix(0, nrow(males), nrow(females))
+    mrejected <- matrix(0, nrow(males), nrow(females))
     
     
     #Loops as long as some male is still unpaired
-    while(sum(mpartner == 0, na.rm = T) > 0){
-      
+    while (sum(mpartner == 0, na.rm = T) > 0) {
       #Selects the first unpaired male
-      focalmale <-which(mpartner == 0)[1]
+      focalmale <- which(mpartner == 0)[1]
       
       #Pulls out his attractions
-      focalmaleatts <-maleattmatrix[focalmale, ]
+      focalmaleatts <- maleattmatrix[focalmale,]
       
       #Determines which females have already rejected him
-      focalmalerejections <-mrejected[focalmale, ]
+      focalmalerejections <- mrejected[focalmale,]
       
       #If there is still a female left who has not rejected the focal male...
-      if(sum(focalmalerejections) < nrow(females)){
-        
+      if (sum(focalmalerejections) < nrow(females)) {
         #Sets the attractiveness of each female who has rejected the focal male to 0
-        focalmaleatts[focalmalerejections == 1] <-0
+        focalmaleatts[focalmalerejections == 1] <- 0
         
         #Determines which of the remaining females he is most attracted to
-        femalechosen <-which(focalmaleatts == max(focalmaleatts))[1]
+        femalechosen <- which(focalmaleatts == max(focalmaleatts))[1]
         
         #If she is single...
-        if(fpartner[femalechosen] == 0){
+        if (fpartner[femalechosen] == 0) {
           #She provisionally pairs with him
-          fpartner[femalechosen] <-focalmale
+          fpartner[femalechosen] <- focalmale
           
           #And he provisionally pairs with her
-          mpartner[focalmale] <-femalechosen
+          mpartner[focalmale] <- femalechosen
           
           #If the chosen female is not single, she compares the attractiveness of the focal male to her current partner...
-        } else if(femaleattmatrix[femalechosen, focalmale] > 
-                  femaleattmatrix[femalechosen, fpartner[femalechosen]]){
+        } else if (femaleattmatrix[femalechosen, focalmale] >
+                   femaleattmatrix[femalechosen, fpartner[femalechosen]]) {
           #If the focal male is more attractive to the chosen female than her current partner...
           
           #The chosen female rejects her current partner
-          mrejected[fpartner[femalechosen], femalechosen] <-1
+          mrejected[fpartner[femalechosen], femalechosen] <- 1
           
           #And he becomes single
-          mpartner[fpartner[femalechosen]] <-0
+          mpartner[fpartner[femalechosen]] <- 0
           
           #And the focal male and the chosen female provisionally pair
-          mpartner[focalmale] <-femalechosen
-          fpartner[femalechosen] <-focalmale
+          mpartner[focalmale] <- femalechosen
+          fpartner[femalechosen] <- focalmale
         } else {
           #If the focal male is not more attractive to the chosen female than her current partner, the chosen female rejects the focal male
-          mrejected[focalmale, femalechosen] <-1
+          mrejected[focalmale, femalechosen] <- 1
         }
       } else {
         #If there is no female who has yet to reject the male, have him abandon search
-        mpartner[focalmale] <-NA
+        mpartner[focalmale] <- NA
       }
     }
     
-    mpartner <-mpartner[is.na(mpartner) == F]
+    mpartner <- mpartner[is.na(mpartner) == F]
     
     #Loop through males' choices
-    for(p in 1:length(mpartner)){
+    for (p in 1:length(mpartner)) {
       #Pair each male with his chosen female
-      pairs <-rbind(pairs, cbind(females[mpartner[p], ], males[p, ]))
+      pairs <-
+        rbind(pairs, cbind(females[mpartner[p],], males[p,]))
     }
     
     #Remove the row of NAs from the pairs dataframe
-    pairs <-pairs[-1, ]
+    pairs <- pairs[-1,]
     
     
     #Determine the PINs of all guessed pairs
-    modelrels <-data.frame("females" = pairs[, 98], "males" = pairs[, 196])
+    modelrels <-
+      data.frame("females" = pairs[, 34], "males" = pairs[, 68])
     
     
     #Store the mate guessed by each model for each agent for females
-    females$modelguess <-modelrels$males[match(females$PIN, modelrels$females)]
+    females$modelguess <-
+      modelrels$males[match(females$PIN, modelrels$females)]
     
     #Do the same for males
-    males$modelguess <-modelrels$females[match(males$PIN, modelrels$males)]
+    males$modelguess <-
+      modelrels$females[match(males$PIN, modelrels$males)]
     
     
     #Put the data back together
-    data2 <-rbind(females, males)
+    data2 <- rbind(females, males)
     
-    }
+  }
   
   
   
@@ -1062,64 +630,75 @@ matechoice <- function(females, males, mca="ram", int_type="euc", power = 2){
   
   
   
-  if(mca=="ram"){
-    
+  if (mca == "ram") {
     #A blank dataframe for storing the paired couples
-    pairs <-matrix(, 1, (ncol(males) + ncol(females)))
-    pairs <-as.data.frame(pairs)
+    pairs <- matrix(, 1, (ncol(males) + ncol(females)))
+    pairs <- as.data.frame(pairs)
     
     #Name the pairs dataframe for cbinding
-    colnames(pairs) <-c(colnames(females), colnames(males))
+    colnames(pairs) <- c(colnames(females), colnames(males))
     
     #A matrix for storing how much investment each agent sends to each potential mate
     #Start with how attracted each agent is to each potential mate
-    maleinvestprops <-maleattmatrix
-    femaleinvestprops <-femaleattmatrix
+    maleinvestprops <- maleattmatrix
+    femaleinvestprops <- femaleattmatrix
     
-    maleinvestprops <-t(apply(maleinvestprops, 1, function(x) x*(10/sum(x))))
-    femaleinvestprops <-t(apply(femaleinvestprops, 1, function(x) x*(10/sum(x))))
+    maleinvestprops <-
+      t(apply(maleinvestprops, 1, function(x)
+        x * (10 / sum(x))))
+    femaleinvestprops <-
+      t(apply(femaleinvestprops, 1, function(x)
+        x * (10 / sum(x))))
     
     #Loop through 100 timesteps for courtship
-    for(c in 1:100){
+    for (c in 1:100) {
       #How much investment each male agent received from each female agent in the previous timestep
-      maleinvestpropr <-t(femaleinvestprops)
+      maleinvestpropr <- t(femaleinvestprops)
       
       #How much investment each female agent received from each male agent in the previous timestep
-      femaleinvestpropr <-t(maleinvestprops)
+      femaleinvestpropr <- t(maleinvestprops)
       
       #Calculate how much investment each agent will send in this round.
       #Investment after the first round is proportional to the mutual investment in the previous round
-      maleinvestprops <-maleinvestprops*maleinvestpropr
-      femaleinvestprops <-femaleinvestprops*femaleinvestpropr
+      maleinvestprops <- maleinvestprops * maleinvestpropr
+      femaleinvestprops <- femaleinvestprops * femaleinvestpropr
       
-      maleinvestprops <-t(apply(maleinvestprops, 1, function(x) x*(10/sum(x))))
-      femaleinvestprops <-t(apply(femaleinvestprops, 1, function(x) x*(10/sum(x))))
+      maleinvestprops <-
+        t(apply(maleinvestprops, 1, function(x)
+          x * (10 / sum(x))))
+      femaleinvestprops <-
+        t(apply(femaleinvestprops, 1, function(x)
+          x * (10 / sum(x))))
       
       #Some models can produce NaNs. This just converts these to 0
-      maleinvestprops[is.nan(maleinvestprops)]<- 0
-      femaleinvestprops[is.nan(femaleinvestprops)]<- 0
+      maleinvestprops[is.nan(maleinvestprops)] <- 0
+      femaleinvestprops[is.nan(femaleinvestprops)] <- 0
     }
     
     #Determine which female each male has chosen
-    mchoice <-data.frame("male"=1:nrow(males))
-    mchoice$choice <-apply(maleinvestprops,1,function(x) resample(which.max(x),1))
+    mchoice <- data.frame("male" = 1:nrow(males))
+    mchoice$choice <-
+      apply(maleinvestprops, 1, function(x)
+        resample(which.max(x), 1))
     
     #Determine which male each female has chosen
-    fchoice <-data.frame("female" = 1:nrow(females))
-    fchoice$choice <-apply(femaleinvestprops, 1, function(x) resample(which.max(x),1))
+    fchoice <- data.frame("female" = 1:nrow(females))
+    fchoice$choice <-
+      apply(femaleinvestprops, 1, function(x)
+        resample(which.max(x), 1))
     
     #Loop through females' choices
-    for(p in 1:nrow(fchoice)){
+    for (p in 1:nrow(fchoice)) {
       #Determine the male chosen by the current focal female
-      chosenmale <-fchoice$choice[p]
+      chosenmale <- fchoice$choice[p]
       
       #Determine the female chosen by the focal female's choice
-      chosenfemale <-mchoice$choice[chosenmale]
+      chosenfemale <- mchoice$choice[chosenmale]
       
       #If the chosen female is the focal female...
-      if(chosenfemale == p){
+      if (chosenfemale == p) {
         #Pair the male and female together
-        pairs <-rbind(pairs,cbind(females[p,],males[chosenmale,]))
+        pairs <- rbind(pairs, cbind(females[p, ], males[chosenmale, ]))
       }
       
       #Otherwise do nothing
@@ -1127,30 +706,36 @@ matechoice <- function(females, males, mca="ram", int_type="euc", power = 2){
     }
     
     #Remove the row of NAs from the pairs dataframe
-    pairs <-pairs[-1,]
+    pairs <- pairs[-1, ]
     
     #Determine the PINs of all guessed pairs
-    modelrels <-data.frame("females" = pairs[, 98], "males" = pairs[,196])
+    modelrels <-
+      data.frame("females" = pairs[, 34], "males" = pairs[, 68])
     
     
     #Store the mate guessed by each model for each agent for females
-    females$modelguess <-modelrels$males[match(females$PIN, modelrels$females)]
+    females$modelguess <-
+      modelrels$males[match(females$PIN, modelrels$females)]
     
     #Do the same for males
-    males$modelguess <-modelrels$females[match(males$PIN, modelrels$males)]
+    males$modelguess <-
+      modelrels$females[match(males$PIN, modelrels$males)]
     
     
     #Put the data back together
-    data2 <-rbind(females, males)
-   
-    }
+    data2 <- rbind(females, males)
+    
+  }
   
+  
+  ## Add random couple sim. match randomly PINs
   
   
   #Compile all the outputs
   output <- data2
   
   return(output)
+
 }
 
 
@@ -1160,11 +745,11 @@ matechoice <- function(females, males, mca="ram", int_type="euc", power = 2){
 
 ```{r}
 
-pp_gsa_euc <-matechoice(pFemales, pMales, "gsa", "euc")
+ppGsa <-matechoice(pFemales, pMales, mca = "gsa")
 
-pp_ram_euc <-matechoice(pFemales, pMales, "ram", "euc")
+ppRam <-matechoice(pFemales, pMales, mca = "ram")
 
-pp_atm_euc <-matechoice(pFemales, pMales, "atm", "euc")
+ppAtm <-matechoice(pFemales, pMales, mca = "atm")
 
 
 
@@ -1174,14 +759,14 @@ pp_atm_euc <-matechoice(pFemales, pMales, "atm", "euc")
 
 ```{r}
 
-sc_gsa_euc1 <-matechoice(pFemales, sMales, "gsa", "euc")
-sc_gsa_euc2 <-matechoice(sFemales, pMales, "gsa", "euc")
+scGsa1 <-matechoice(pFemales, sMales, "gsa")
+scGsa2 <-matechoice(sFemales, pMales, "gsa")
 
-sc_ram_euc1 <-matechoice(pFemales, sMales, "ram", "euc")
-sc_ram_ecu2 <-matechoice(sFemales, pMales, "ram", "euc")
+scRam1 <-matechoice(pFemales, sMales, "ram")
+scRam2 <-matechoice(sFemales, pMales, "ram")
 
-sc_atm_euc1 <-matechoice(pFemales, sMales, "atm", "euc")
-sc_atm_euc2 <-matechoice(sFemales, pMales, "atm", "euc")
+scAtm1 <-matechoice(pFemales, sMales, "atm")
+scAtm2 <-matechoice(sFemales, pMales, "atm")
 
 ```
 
@@ -1227,7 +812,10 @@ sc_atm_euc2 <-matechoice(sFemales, pMales, "atm", "euc")
 couples <- pp_gsa_euc[1:popsize, c(98:99)]
 #females are first in ^ dataframe: PIN == females, modelguess == males
 
+# to compare : dist(rbind(ppGSA ))... SEE PIC
 
+# need to compare this to null distribution : SEE PIC (this goes in  cbind(...) )
+# do this 10000 times and compare actual difference ^^ to what you see here
 
 
 
