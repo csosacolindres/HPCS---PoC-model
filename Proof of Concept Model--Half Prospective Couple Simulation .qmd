@@ -205,7 +205,7 @@ pFemales <- agentGenerate(popsize, 0, hdata[hdata$sex==0,])
 
 #Give each agent a unique PIN
 pMales$PIN<-sample(1:nrow(pMales),nrow(pMales),replace=F)
-pFemales$PIN<-sample(nrow(pMales):(nrow(pMales)+nrow(pFemales)),nrow(pFemales),replace=F)
+pFemales$PIN<-sample(nrow(pMales):(nrow(pMales)+nrow(pFemales)),nrow(pFemales),replace=F) + 1
 
 
 
@@ -215,8 +215,8 @@ sMales <- agentGenerate(popsize, 1, hdata[hdata$sex==1,])
 sFemales <- agentGenerate(popsize, 0, hdata[hdata$sex==0,])
 
 #Give each agent a unique PIN
-sMales$PIN<-sample(1:nrow(sMales),nrow(sMales),replace=F) + popsize*2
-sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),replace=F) + popsize*2
+sMales$PIN<-sample(1:nrow(sMales),nrow(sMales),replace=F) + (popsize*2) + 1 
+sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),replace=F) + (popsize*2) + 2
 
 
 
@@ -761,12 +761,15 @@ ppAtm <-matechoice(pFemales, pMales, mca = "atm")
 
 scGsa1 <-matechoice(pFemales, sMales, "gsa")
 scGsa2 <-matechoice(sFemales, pMales, "gsa")
+scGsa <- rbind(scGsa1, scGsa2)
 
 scRam1 <-matechoice(pFemales, sMales, "ram")
 scRam2 <-matechoice(sFemales, pMales, "ram")
+scRam <-rbind(scRam1, scRam2)
 
 scAtm1 <-matechoice(pFemales, sMales, "atm")
 scAtm2 <-matechoice(sFemales, pMales, "atm")
+scAtm <-rbind(scAtm1, scAtm2)
 
 ```
 
@@ -809,8 +812,6 @@ scAtm2 <-matechoice(sFemales, pMales, "atm")
         -   PP CS using RAM & S/C CS using RAM
 
 ```{r}
-couples <- pp_gsa_euc[1:popsize, c(98:99)]
-#females are first in ^ dataframe: PIN == females, modelguess == males
 
 # to compare : dist(rbind(ppGSA ))... SEE PIC
 
@@ -818,7 +819,20 @@ couples <- pp_gsa_euc[1:popsize, c(98:99)]
 # do this 10000 times and compare actual difference ^^ to what you see here
 
 
+# euc dist between primary and secondary partners 
+matesDistGsaGsa <- sapply (ppGsa$PIN, function(x) 
+  dist(rbind(ppGsa[ppGsa$PIN==ppGsa$modelguess[ppGsa$PIN==x], 18:33], 
+             scGsa[scGsa$PIN==scGsa$modelguess[scGsa$PIN==x], 18:33])))
+
+# Comapre to null distribution 
+matesDistGsaGsaNull <- sapply( 1:10000, function(y) 
+  mean(sapply (ppGsa$PIN, function(x) 
+  dist(rbind(ppGsa[ppGsa$PIN==sample(ppGsa$PIN[ppGsa$sex != ppGsa$sex[ppGsa$PIN == x]], 1), 18:33], 
+             scGsa[scGsa$PIN==scGsa$modelguess[scGsa$PIN==x], 18:33])))))
 
 
+pGsa <- mean(mean(matesDistGsaGsa)>= matesDistGsaGsaNull)
 
+
+# Can run ttest GSA to other model comparisons 
 ```
