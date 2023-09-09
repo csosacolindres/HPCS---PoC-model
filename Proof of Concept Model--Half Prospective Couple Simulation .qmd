@@ -2,9 +2,11 @@
 title: "Proof-of-Concept Model: Half-Prospective Couple Simulation"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
-# Proof-of-Concept Model
+# Half-Prospective Couple Simulation: Proof-of-Concept Model
 
 ## Conceptual Model
 
@@ -127,15 +129,20 @@ to do: 1-4.
 ```{r}
 #Human Data#
 #Load in the human data for parameterizing agents
-hdata<-read.csv("CAREER1 PROCESSED Data 01172020 104258.csv")
+hdata <- read.csv("CAREER1 PROCESSED Data 01172020 104258.csv")
 
 #Remove unnecessary columns from the human data
-hdata<-hdata[,c(1, 3:10, 235:250, 345:360)]
+hdata <- hdata[, c(1, 3:10, 235:250, 345:360)]
 
 #Make sure there's no missing information
-hdata<-hdata[complete.cases(hdata[,c(10:25, 26:41)]),]
+hdata <- hdata[complete.cases(hdata[, c(10:25, 26:41)]), ]
 
+```
 
+```{r}
+# Library 
+
+library(ggplot2)
 ```
 
 #### Agent Generate Parameters:
@@ -143,7 +150,7 @@ hdata<-hdata[complete.cases(hdata[,c(10:25, 26:41)]),]
 ```{r}
 
 # Pop size 
-popsize <- 10 
+popsize <- nrow(hdata)
 
 
 ```
@@ -152,42 +159,43 @@ popsize <- 10
 
 ```{r}
 #Agent generation#
-agentGenerate<-function(popsize, sex, data){
-  
+agentGenerate <- function(popsize, sex, data) {
   #Generate agents with trait and preferences by resampling from the human data
-  agents <-apply(data[, c(10:25, 26:41)], 2, function(x) 
-    sample(x, popsize, replace=T))
+  agents <- apply(data[, c(10:25, 26:41)], 2, function(x)
+    sample(x, popsize, replace = T))
   
   #Standardize ratings
-  agents <-t(apply(agents, 2, scale))
+  agents <- t(apply(agents, 2, scale))
   
-  #Create a copy of the human dataframe including just the required variables 
+  #Create a copy of the human dataframe including just the required variables
   hdata1 <- data[, as.numeric(c(10:25, 26:41))]
   
   #Calculates the correlation matrix for traits and preferences in the real data
-  hdata1cor <-cor(hdata1)
+  hdata1cor <- cor(hdata1)
   
   #Computes the Cholesky decomposition of this matrix
   #This will impose a realistic covariance matrix on the simulated data
-  hdata1chol <-t(chol(hdata1cor, pivot = T))
+  hdata1chol <- t(chol(hdata1cor, pivot = T))
   
   #Multiplies the scaled agent data by the Cholesky decomposition
   #This imposes approximately the correct covariance matrix
-  agents <-t(hdata1chol %*% agents)
+  agents <- t(hdata1chol %*% agents)
   
   #Add the mean of each variable to the simulated data to re-center data
-  agents <-sapply(1:ncol(agents), function(x) (sd(hdata1[, x])*agents[,x]) + mean(hdata1[, x]))
+  agents <-
+    sapply(1:ncol(agents), function(x)
+      (sd(hdata1[, x]) * agents[, x]) + mean(hdata1[, x]))
   
   
   #Truncate rated variables to the true mini and max found in the human data
-  agents <-sapply(1:ncol(agents), function(x) 
-    ifelse(agents[,x] > max(hdata1[,x]), max(hdata1[,x]), agents[,x]))
+  agents <- sapply(1:ncol(agents), function(x)
+    ifelse(agents[, x] > max(hdata1[, x]), max(hdata1[, x]), agents[, x]))
   
-  agents <-sapply(1:ncol(agents),function(x) 
-    ifelse(agents[,x] < min(hdata1[,x]), min(hdata1[,x]), agents[,x]))
+  agents <- sapply(1:ncol(agents), function(x)
+    ifelse(agents[, x] < min(hdata1[, x]), min(hdata1[, x]), agents[, x]))
   
   #Names variables appropriately
-  colnames(agents) <-colnames(hdata1)
+  colnames(agents) <- colnames(hdata1)
   
   return(as.data.frame(cbind(sex, agents)))
 }
@@ -199,25 +207,30 @@ agentGenerate<-function(popsize, sex, data){
 
 ```{r}
 
+
 ### Generate Primary Population ###
-pMales <- agentGenerate(popsize, 1, hdata[hdata$sex==1,])
-pFemales <- agentGenerate(popsize, 0, hdata[hdata$sex==0,])
+pMales <- agentGenerate(popsize, 1, hdata[hdata$sex == 1, ])
+pFemales <- agentGenerate(popsize, 0, hdata[hdata$sex == 0, ])
 
 #Give each agent a unique PIN
-pMales$PIN<-sample(1:nrow(pMales),nrow(pMales),replace=F)
-pFemales$PIN<-sample(nrow(pMales):(nrow(pMales)+nrow(pFemales)),nrow(pFemales),replace=F) + 1
+pMales$PIN <- sample(1:nrow(pMales), nrow(pMales), replace = F)
+pFemales$PIN <-
+  sample(nrow(pMales):(nrow(pMales) + nrow(pFemales)), nrow(pFemales), replace =
+           F) + 1
 
 
 
 
 ### Generate Secondary Population ###
-sMales <- agentGenerate(popsize, 1, hdata[hdata$sex==1,])
-sFemales <- agentGenerate(popsize, 0, hdata[hdata$sex==0,])
+sMales <- agentGenerate(popsize, 1, hdata[hdata$sex == 1, ])
+sFemales <- agentGenerate(popsize, 0, hdata[hdata$sex == 0, ])
 
 #Give each agent a unique PIN
-sMales$PIN<-sample(1:nrow(sMales),nrow(sMales),replace=F) + (popsize*2) + 1 
-sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),replace=F) + (popsize*2) + 2
-
+sMales$PIN <-
+  sample(1:nrow(sMales), nrow(sMales), replace = F) + (popsize * 2) + 1
+sFemales$PIN <-
+  sample(nrow(sMales):(nrow(sMales) + nrow(sFemales)), nrow(sFemales), replace =
+           F) + (popsize * 2) + 2
 
 
 
@@ -234,16 +247,19 @@ sFemales$PIN<-sample(nrow(sMales):(nrow(sMales)+nrow(sFemales)),nrow(sFemales),r
 
 ```{r}
 
+
 #Mate value calculation#
-mvcalc <- function(ideal, traits){
+mvcalc <- function(ideal, traits) {
   #ideal is ideal preferences
   #traits is actual trait values
   
-    #Calculates the Euclidean distance between the agent's preferences and each mate's traits
-    #Transforms this distance such that positive values are more attractive by multiplying by -1 and
-    #adding 1 plus the maximum possible Euclidean distance
-    mv <- apply(traits, 1, function(x)
-      10*(-1*(dist(rbind(ideal, x))) + sqrt(10^2*16))/sqrt(10^2*16))
+  #Calculates the Euclidean distance between the agent's preferences and each mate's traits
+  #Transforms this distance such that positive values are more attractive by multiplying by -1 and
+  #adding 1 plus the maximum possible Euclidean distance
+  mv <- apply(traits, 1, function(x)
+    10 * (-1 * (dist(rbind(
+      ideal, x
+    ))) + sqrt(10 ^ 2 * 16)) / sqrt(10 ^ 2 * 16))
   
   
   return(mv)
@@ -264,9 +280,9 @@ resample <- function(x,...){if(length(x)==1) x else sample(x,...)}
 
 ```{r}
 
+
 #Mate Choice#
-matechoice <- function(females, males, mca="ram"){
-  
+matechoice <- function(females, males, mca = "ram") {
   ######Computing Attraction######
   #mvcalc <- function(ideal, min, max, imp, rank, traits, type = "euc", power=2)
   
@@ -297,229 +313,6 @@ matechoice <- function(females, males, mca="ram"){
   
   
   ###### Mate Choice ######
-  
-  if (mca == "atm") {
-    #Starting dataframes for storing a lot of mating information
-    mthresholds <- data.frame(
-      "PIN" = males$PIN,
-      "thresh" = 5,
-      "mateatt" = 0,
-      "matepin" = 0,
-      "dates" = 0,
-      "avail" = 1
-    )
-    
-    fthresholds <- data.frame(
-      "PIN" = females$PIN,
-      "thresh" = 5,
-      "mateatt" = 0,
-      "matepin" = 0,
-      "dates" = 0,
-      "avail" = 1
-    )
-    
-    #Create a variable to keep track of whether the agent couples are changing
-    same <- 0
-    
-    #Create variable to keep track of how long the loop is running to prevent infinite loops
-    steps <- 0
-    
-    #Create a variable to set the maximum number of loops
-    maxsteps <- nrow(females) * 2
-    
-    #Create variable to termine while loop; the value will depend on the end conditions
-    endcheck <- 0
-    
-    
-    while (endcheck == 0) {
-      #Store each person's mate at the start of the loop (useful later)
-      mstartmate <- mthresholds$matepin
-      fstartmate <- fthresholds$matepin
-      
-      #Randomly scramble the male agents
-      #Females will go on "dates" with males in order of these vectrors
-      mdate <- resample(mthresholds$PIN[mthresholds$avail == 1],
-                        length(mthresholds$PIN[mthresholds$avail == 1]))
-      
-      fdate <- resample(fthresholds$PIN[fthresholds$avail == 1],
-                        length(fthresholds$PIN[fthresholds$avail == 1]))
-      
-      #Just locates each dating partner's position in the thresholds dataframe
-      #Very handy later on
-      mpos <- match(mdate, mthresholds$PIN)
-      fpos <- match(fdate, fthresholds$PIN)
-      
-      #Calculate how attracted each male is to his female date
-      matts <- sapply(1:length(mdate), function(x)
-        maleattmatrix[rownames(maleattmatrix) == mdate[x],
-                      colnames(maleattmatrix) == fdate[x]])
-      
-      #Calculate how attracted each female is to her male date
-      fatts <- sapply(1:length(fdate), function(x)
-        femaleattmatrix[rownames(femaleattmatrix) == fdate[x],
-                        colnames(femaleattmatrix) == mdate[x]])
-      
-      #Have each agent make offers to only those potential mates who meet or surpass their current threshold
-      moffers <- matts >= mthresholds$thresh[mpos]
-      foffers <- fatts >= fthresholds$thresh[fpos]
-      
-      
-      #Loop through males
-      for (u in 1:length(mdate)) {
-        #If a male receives an offer from a female more attractive than his current threshold...
-        if (foffers[u] == T &
-            matts[u] > mthresholds$thresh[mpos[u]]) {
-          #...He moves his threshold 1% closer to her attractiveness
-          mthresholds$thresh[mpos[u]] <-
-            mthresholds$thresh[mpos[u]] +
-            .05 * (matts[u] - mthresholds$thresh[mpos[u]])
-          
-        } else if (foffers[u] == F &
-                   mthresholds$thresh[mpos[u]] > matts[u]) {
-          #Or if a male is rejected by a female whose attractiveness is below his current threshold...
-          
-          #...he lowers his threshold 1% closer to her attractiveness
-          mthresholds$thresh[mpos[u]] <-
-            mthresholds$thresh[mpos[u]] +
-            .05 * (matts[u] - mthresholds$thresh[mpos[u]])
-          
-        } else {
-          #Otherwise, he keeps his threshold the same
-          mthresholds$thresh[mpos[u]]
-        }
-      }
-      
-      
-      
-      #Females do the same as males
-      for (u in 1:length(fdate)) {
-        #If a female receives an offer from a male more attractive than her current threshold...
-        if (moffers[u] == T &
-            fatts[u] > fthresholds$thresh[fpos[u]]) {
-          #...She moves her threshold 1% closer to his attractiveness
-          fthresholds$thresh[fpos[u]] <-
-            fthresholds$thresh[fpos[u]] +
-            .05 * (fatts[u] - fthresholds$thresh[fpos[u]])
-          
-        } else if (moffers[u] == F &
-                   fthresholds$thresh[fpos[u]] > fatts[u]) {
-          #Or if a female is rejected by a male whose attractiveness is below her current threshold...
-          
-          #...she lowers her threshold 1% closer to his attractiveness
-          fthresholds$thresh[fpos[u]] <-
-            fthresholds$thresh[fpos[u]] +
-            .05 * (fatts[u] - fthresholds$thresh[fpos[u]])
-          
-        } else {
-          #Otherwise, she keeps her threshold the same
-          fthresholds$thresh[fpos[u]]
-        }
-      }
-      
-      
-      
-      #Determine which agents have made "real" mutual offer
-      #An offer is mutual only if both agents proposed and both agents would prefer their proposal partner to their current partner
-      mutoffers <- moffers & foffers & matts >
-        mthresholds$mateatt[mpos] &
-        fatts > fthresholds$mateatt[fpos]
-      
-      #Loop through mutual offers...
-      for (u in 1:length(mutoffers)) {
-        #If an agent couple has a mutual offer
-        if (mutoffers[u] == T) {
-          #Have each agent break up with their current partner
-          fthresholds$matepin[fthresholds$PIN == mthresholds$matepin[mpos[u]]] <-
-            0
-          mthresholds$matepin[mthresholds$PIN == fthresholds$matepin[fpos[u]]] <-
-            0
-          
-          #And pair with their proposal partner
-          mthresholds$matepin[mpos[u]] <- fdate[u]
-          fthresholds$matepin[fpos[u]] <- mdate[u]
-        }
-      }
-      
-      #Determine how attracted each agent is to their current partner
-      #Not the most efficient, but gets the job done for now
-      mthresholds$mateatt <- sapply(1:nrow(males), function(x)
-        ifelse(mthresholds$matepin[x] != 0,
-               maleattmatrix[x, colnames(maleattmatrix) == mthresholds$matepin[x]], 0))
-      
-      fthresholds$mateatt <- sapply(1:nrow(females), function(x)
-        ifelse(fthresholds$matepin[x] != 0,
-               femaleattmatrix[x, colnames(femaleattmatrix) == fthresholds$matepin[x]], 0))
-      
-      #Increment how many "dates" each agent has been on with their current partner
-      #If an agent is dumped, their date count is reset to 0
-      mthresholds$dates <- ifelse(
-        mthresholds$matepin == 0,
-        0,
-        ifelse(mthresholds$matepin == mstartmate,
-               mthresholds$dates + 1, 1)
-      )
-      
-      fthresholds$dates <- ifelse(
-        fthresholds$matepin == 0,
-        0,
-        ifelse(fthresholds$matepin == fstartmate,
-               fthresholds$dates + 1, 1)
-      )
-      
-      
-      #Remove an agent from the market if they have been with their current partner for long enough
-      mthresholds$avail <- ifelse(mthresholds$dates >= 50, 0, 1)
-      fthresholds$avail <- ifelse(fthresholds$dates >= 50, 0, 1)
-      
-      #Determine whether the agent couple have changed after this iteration
-      #If not, increment the "same" variable by 1
-      #If so, reset the same variable to 0
-      same <-
-        ifelse(sum(mthresholds$matepin != mstartmate) == 0, same + 1, 0)
-      
-      #Increment the number of steps by one
-      steps <- steps + 1
-      
-      #Terminate the loop if there hasn't been a change in 20 steps
-      if (same >= 5) {
-        endcheck <- 1
-      }
-      
-      #Terminate the loop if there are no available mates
-      if (sum(mthresholds$avail) == 0 |
-          sum(fthresholds$avail) == 0) {
-        endcheck <- 1
-      }
-      
-      #Terminate the loop if it has been running too long
-      if (steps > maxsteps) {
-        endcheck <- 1
-      }
-    }
-    
-    
-    #Store the mate guessed by each model for each agent for females
-    females$modelguess <- fthresholds$matepin
-    
-    #Do the same for males
-    males$modelguess <- mthresholds$matepin
-    
-    
-    data2 <- rbind(females, males)
-    data2$modelguess[data2$modelguess == 0] <- NA
-    
-    
-  }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   if (mca == "gsa") {
     #A blank dataframe for storing the paired couples
     pairs <- matrix(, 1, (ncol(males) + ncol(females)))
@@ -544,10 +337,10 @@ matechoice <- function(females, males, mca="ram"){
       focalmale <- which(mpartner == 0)[1]
       
       #Pulls out his attractions
-      focalmaleatts <- maleattmatrix[focalmale,]
+      focalmaleatts <- maleattmatrix[focalmale, ]
       
       #Determines which females have already rejected him
-      focalmalerejections <- mrejected[focalmale,]
+      focalmalerejections <- mrejected[focalmale, ]
       
       #If there is still a female left who has not rejected the focal male...
       if (sum(focalmalerejections) < nrow(females)) {
@@ -555,7 +348,8 @@ matechoice <- function(females, males, mca="ram"){
         focalmaleatts[focalmalerejections == 1] <- 0
         
         #Determines which of the remaining females he is most attracted to
-        femalechosen <- which(focalmaleatts == max(focalmaleatts))[1]
+        femalechosen <-
+          which(focalmaleatts == max(focalmaleatts))[1]
         
         #If she is single...
         if (fpartner[femalechosen] == 0) {
@@ -595,11 +389,11 @@ matechoice <- function(females, males, mca="ram"){
     for (p in 1:length(mpartner)) {
       #Pair each male with his chosen female
       pairs <-
-        rbind(pairs, cbind(females[mpartner[p],], males[p,]))
+        rbind(pairs, cbind(females[mpartner[p], ], males[p, ]))
     }
     
     #Remove the row of NAs from the pairs dataframe
-    pairs <- pairs[-1,]
+    pairs <- pairs[-1, ]
     
     
     #Determine the PINs of all guessed pairs
@@ -620,7 +414,6 @@ matechoice <- function(females, males, mca="ram"){
     data2 <- rbind(females, males)
     
   }
-  
   
   
   
@@ -698,7 +491,8 @@ matechoice <- function(females, males, mca="ram"){
       #If the chosen female is the focal female...
       if (chosenfemale == p) {
         #Pair the male and female together
-        pairs <- rbind(pairs, cbind(females[p, ], males[chosenmale, ]))
+        pairs <-
+          rbind(pairs, cbind(females[p,], males[chosenmale,]))
       }
       
       #Otherwise do nothing
@@ -706,7 +500,7 @@ matechoice <- function(females, males, mca="ram"){
     }
     
     #Remove the row of NAs from the pairs dataframe
-    pairs <- pairs[-1, ]
+    pairs <- pairs[-1,]
     
     #Determine the PINs of all guessed pairs
     modelrels <-
@@ -728,16 +522,35 @@ matechoice <- function(females, males, mca="ram"){
   }
   
   
+  
+  
+  
+  
+  
+  
   ## Add random couple sim. match randomly PINs
+  if (mca == "random") {
+    females$modelguess <- sample(males$PIN)
+    
+    # I want the males model guess to be the females pin that matches females modelguess indexed in the same order as males pin.
+    for (mg in 1:nrow(males)) {
+      males$modelguess[mg] <-
+        females$PIN[females$modelguess == males$PIN[mg]]
+    }
+    
+    
+    data2 <- rbind(females, males)
+  }
+  
+  
   
   
   #Compile all the outputs
   output <- data2
   
   return(output)
-
+  
 }
-
 
 ```
 
@@ -745,13 +558,11 @@ matechoice <- function(females, males, mca="ram"){
 
 ```{r}
 
-ppGsa <-matechoice(pFemales, pMales, mca = "gsa")
+ppGsa <- matechoice(pFemales, pMales, mca = "gsa")
 
-ppRam <-matechoice(pFemales, pMales, mca = "ram")
+ppRam <- matechoice(pFemales, pMales, mca = "ram")
 
-ppAtm <-matechoice(pFemales, pMales, mca = "atm")
-
-
+ppRandom <- matechoice(pFemales, pMales, mca = "random")
 
 ```
 
@@ -759,80 +570,203 @@ ppAtm <-matechoice(pFemales, pMales, mca = "atm")
 
 ```{r}
 
-scGsa1 <-matechoice(pFemales, sMales, "gsa")
-scGsa2 <-matechoice(sFemales, pMales, "gsa")
+scGsa1 <- matechoice(pFemales, sMales, "gsa")
+scGsa2 <- matechoice(sFemales, pMales, "gsa")
 scGsa <- rbind(scGsa1, scGsa2)
 
-scRam1 <-matechoice(pFemales, sMales, "ram")
-scRam2 <-matechoice(sFemales, pMales, "ram")
-scRam <-rbind(scRam1, scRam2)
 
-scAtm1 <-matechoice(pFemales, sMales, "atm")
-scAtm2 <-matechoice(sFemales, pMales, "atm")
-scAtm <-rbind(scAtm1, scAtm2)
+scRam1 <- matechoice(pFemales, sMales, "ram")
+scRam2 <- matechoice(sFemales, pMales, "ram")
+scRam <- rbind(scRam1, scRam2)
+
+
+scRandom1 <- matechoice(pFemales, sMales, "random")
+scRandom2 <- matechoice(sFemales, pMales, "random")
+scRandom <- rbind(scRandom1, scRandom2)
+
 
 ```
 
 ### Section 5: Answer Key Questions
 
-1.  Are secondary partners significantly more similar to primary partners than expected by chance?
+1.  Are secondary partners significantly more similar to primary partners than expected by chance
 
-    -   Compare Secondary Partners to Primary Partners
-    -   What does the difference / distance mean for \^ ?
-        -   permutation test
+    -   Compare Secondary Partners to Primary Partner
 
-2.  Does this not happen when choice is random with respect to preferences?
-
-    -   Compare Couple Simulation models (Random, GSA, RAM)
-
-        -   Random vs. GSA
-
-        -   Random vs. RAM
-
-3.  Are matches significantly more similar when the secondary mate choice model matches the primary?
-
-    -   Compare Combinations of Couple Simulation Models
-
-        -   PP CS using Random & S/C CS using Random
-
-        -   PP CS using Random & S/C CS using GSA
-
-        -   PP CS using Random & S/C CS using RAM
-
-        -   PP CS using GSA & S/C CS using Random
-
-        -   PP CS using GSA & S/C CS using GSA
-
-        -   PP CS using GSA & S/C CS using RAM
-
-        -   PP CS using RAM & S/C CS using Random
-
-        -   PP CS using RAM & S/C CS using GSA
-
-        -   PP CS using RAM & S/C CS using RAM
+Make Function for these comparisions
 
 ```{r}
 
-# to compare : dist(rbind(ppGSA ))... SEE PIC
 
-# need to compare this to null distribution : SEE PIC (this goes in  cbind(...) )
-# do this 10000 times and compare actual difference ^^ to what you see here
+partnerSimilarity <- function(pp, sc, random = F) {
+  partnerSim <- rep(NA, nrow(pp))
+  for (p in 1:nrow(pp)) {
+    if (random == F) {
+      ppPartner <- pp$modelguess[p]
+      
+    } else {
+      ppPartner <-
+        pp$modelguess[sample((1:nrow(pp))[pp$sex == pp$sex[p]], 1)]
+    }
+    
+    scPartner <- sc$modelguess[sc$PIN == pp$PIN[p]]
+    
+    if (!(is.na(ppPartner)) & !(is.na(scPartner))) {
+      partnerSim[p] <-
+        dist(rbind(pp[pp$PIN == ppPartner, 18:33],
+                   sc[sc$PIN == scPartner, 18:33]))
+    }
+  }
+  return(partnerSim)
+}
+
+```
+
+Compare primary partners & split combine partners:
+
+Loop partnerSimiliarity for mean. Store pvalues to take proportion of times when gsa, ram etc, is less than .05 --- take count for proportion. & loop through multiple sample sizes (ex. popsize \<- 1000, then 500, 250, etc).
+
+RAM has an "advantage" right now because we are not counting NA
+
+```{r}
+
+# loop partnerSImilairies for means
 
 
-# euc dist between primary and secondary partners 
-matesDistGsaGsa <- sapply (ppGsa$PIN, function(x) 
-  dist(rbind(ppGsa[ppGsa$PIN==ppGsa$modelguess[ppGsa$PIN==x], 18:33], 
-             scGsa[scGsa$PIN==scGsa$modelguess[scGsa$PIN==x], 18:33])))
+##### Primary GSA & Split-Combine GSA #####
+partSimGsaGsa <- partnerSimilarity(ppGsa, scGsa)
 
-# Comapre to null distribution 
-matesDistGsaGsaNull <- sapply( 1:10000, function(y) 
-  mean(sapply (ppGsa$PIN, function(x) 
-  dist(rbind(ppGsa[ppGsa$PIN==sample(ppGsa$PIN[ppGsa$sex != ppGsa$sex[ppGsa$PIN == x]], 1), 18:33], 
-             scGsa[scGsa$PIN==scGsa$modelguess[scGsa$PIN==x], 18:33])))))
+partSimGsaGsaNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppGsa, scGsa, random = T), na.rm = T))
+
+pGsaGsa <- mean(mean(partSimGsaGsa) >= partSimGsaGsaNull)
 
 
-pGsa <- mean(mean(matesDistGsaGsa)>= matesDistGsaGsaNull)
 
 
-# Can run ttest GSA to other model comparisons 
+##### Primary GSA & Split-Combine RAM #####
+partSimGsaRam <- partnerSimilarity(ppGsa, scRam)
+
+partSimGsaRamNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppGsa, scRam, random = T), na.rm = T))
+
+pGsaRam <- mean(mean(partSimGsaRam, na.rm = T) >= partSimGsaRamNull)
+
+
+
+
+##### Primary GSA & Split-Combine Random #####
+partSimGsaRandom <- partnerSimilarity(ppGsa, scRandom)
+
+partSimGsaRandomNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppGsa, scRandom, random = T), na.rm = T))
+
+pGsaRandom <-
+  mean(mean(partSimGsaRandom, na.rm = T) >= partSimGsaRandomNull)
+
+
+
+
+##### Primary RAM & Split-Combine GSA #####
+partSimRamGsa <- partnerSimilarity(ppRam, scGsa)
+
+partSimRamGsaNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppRam, scGsa, random = T), na.rm = T))
+
+pRamGsa <- mean(mean(partSimRamGsa, na.rm = T) >= partSimRamGsaNull)
+
+
+
+
+
+##### Primary RAM & Split-Combine RAM #####
+partSimRamRam <- partnerSimilarity(ppRam, scRam)
+
+partSimRamRamNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppRam, scRam, random = T), na.rm = T))
+
+pRamRam <- mean(mean(partSimRamRam, na.rm = T) >= partSimRamRamNull)
+
+
+
+
+##### Primary RAM & Split-Combine Random #####
+partSimRamRandom <- partnerSimilarity(ppRam, scRandom)
+
+partSimRamRandomNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppRam, scRandom, random = T), na.rm = T))
+
+pRamRandom <-
+  mean(mean(partSimRamRandom, na.rm = T) >= partSimRamRandomNull)
+
+
+
+
+##### Primary Random & Split-Combine GSA #####
+partSimRandomGsa <- partnerSimilarity(ppRandom, scGsa)
+
+partSimRandomGsaNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppRandom, scGsa, random = T), na.rm = T))
+
+pRandomGsa <-
+  mean(mean(partSimRandomGsa, na.rm = T) >= partSimRandomGsaNull)
+
+
+
+
+##### Primary Random & Split-Combine RAM #####
+partSimRandomRam <- partnerSimilarity(ppRandom, scRam)
+
+
+partSimRandomRamNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppRandom, scRam, random = T), na.rm = T))
+
+pRandomRam <-
+  mean(mean(partSimRandomRam, na.rm = T) >= partSimRandomRamNull)
+
+
+
+
+##### Primary Random & Split-Combine Random #####
+partSimRandomRandom <- partnerSimilarity(ppRandom, scRandom)
+
+partSimRandomRandomNull <- sapply(1:10000, function(x)
+  mean(partnerSimilarity(ppRandom, scRandom, random = T), na.rm = T))
+
+pRandomRandom <-
+  mean(mean(partSimRandomRandom, na.rm = T) >= partSimRandomRandomNull)
+
+```
+
+### 
+
+### Graphs
+
+```{r}
+
+# graph how well each cs model matches partners from time 1 to time 2. Matching is defined by how correlated t1 partners traits are to t2 partners. 
+
+
+meanPartSimGsaGsa <- mean(partnerSimilarity(ppGsa, scGsa))
+meanPartSimGsaRam <- mean(partnerSimilarity(ppGsa, scRam), na.rm = T)
+meanPartSimGsaRandom <- mean(partnerSimilarity(ppGsa, scRandom))
+
+meanPartSimRamGsa <- mean(partnerSimilarity(ppRam, scGsa), na.rm = T)
+meanPartSimRamRam <- mean(partnerSimilarity(ppRam, scRam), na.rm = T)
+meanPartSimRamRandom <- mean(partnerSimilarity(ppRam, scRandom), na.rm = T)
+
+meanPartSimRandomGsa <- mean(partnerSimilarity(ppRandom, scGsa))
+meanPartSimRandomRam <- mean(partnerSimilarity(ppRandom, scRam), na.rm = T)
+meanPartSimRandomRandom <- mean(partnerSimilarity(ppRandom, scRandom))
+
+modelMeans <- t(data.frame("gsaGsa" = meanPartSimGsaGsa, 
+           "gsaRam" = meanPartSimGsaRam, 
+           "gsaRandom" = meanPartSimGsaRandom, 
+           "ramGsa" = meanPartSimRamGsa, 
+           "ramRam" = meanPartSimRamRam, 
+           "ramRandom" = meanPartSimRamRandom, 
+           "randomGsa" = meanPartSimRandomGsa, 
+           "randomRam" = meanPartSimRandomRam, 
+           "randomRandom" = meanPartSimRandomRandom))
+
 ```
