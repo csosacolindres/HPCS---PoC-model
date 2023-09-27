@@ -8,9 +8,7 @@ editor_options:
 
 # Half-Prospective Couple Simulation: Proof-of-Concept Model
 
-## Conceptual Model
-
-### Background:
+## Background
 
 Couple Simulation might be able to predict who people will end up with (maybe *should* end up with). However, as it stands right now, couple simulation has only been retrospective---that is, has only reconstructed relationships that already exist.
 
@@ -38,7 +36,7 @@ Here, the key questions are:
 
 3.  Are matches significantly more similar when the secondary mate choice model matches the primary?
 
-### Conceptual Code/To-Do List
+### Model Outline:
 
 Sections:
 
@@ -114,19 +112,18 @@ Sections:
 
             -   PP CS using RAM & S/C CS using RAM
 
-### Pseudo Code:
+## HPCS PoC model
 
-**Section 1: Create all Populations**
+### Library
 
-## Code
+```{r library}
 
-to do: 1-4.
+library(ggplot2)
+```
 
-### Section 1: Create all Populations
+### Human Data
 
-#### Human Data:
-
-```{r}
+```{r humanData}
 #Human Data#
 #Load in the human data for parameterizing agents
 hdata <- read.csv("CAREER1 PROCESSED Data 01172020 104258.csv")
@@ -139,26 +136,23 @@ hdata <- hdata[complete.cases(hdata[, c(10:25, 26:41)]), ]
 
 ```
 
-```{r}
-# Library 
+### Parameters
 
-library(ggplot2)
-```
-
-#### Agent Generate Parameters:
-
-```{r}
+```{r parameters}
 
 # Pop size 
 popsize <- nrow(hdata)
 
+# model loops
+partSimLoops <- 30
 
 ```
 
-#### Agent Generate Function:
+### Functions
 
-```{r}
-#Agent generation#
+```{r functions}
+
+### Agent Generation ####
 agentGenerate <- function(popsize, sex, data) {
   #Generate agents with trait and preferences by resampling from the human data
   agents <- apply(data[, c(10:25, 26:41)], 2, function(x)
@@ -201,54 +195,10 @@ agentGenerate <- function(popsize, sex, data) {
 }
 
 
-```
-
-#### Generate Agents:
-
-```{r}
-
-
-### Generate Primary Population ###
-pMales <- agentGenerate(popsize, 1, hdata[hdata$sex == 1, ])
-pFemales <- agentGenerate(popsize, 0, hdata[hdata$sex == 0, ])
-
-#Give each agent a unique PIN
-pMales$PIN <- sample(1:nrow(pMales), nrow(pMales), replace = F)
-pFemales$PIN <-
-  sample(nrow(pMales):(nrow(pMales) + nrow(pFemales)), nrow(pFemales), replace =
-           F) + 1
 
 
 
-
-### Generate Secondary Population ###
-sMales <- agentGenerate(popsize, 1, hdata[hdata$sex == 1, ])
-sFemales <- agentGenerate(popsize, 0, hdata[hdata$sex == 0, ])
-
-#Give each agent a unique PIN
-sMales$PIN <-
-  sample(1:nrow(sMales), nrow(sMales), replace = F) + (popsize * 2) + 1
-sFemales$PIN <-
-  sample(nrow(sMales):(nrow(sMales) + nrow(sFemales)), nrow(sFemales), replace =
-           F) + (popsize * 2) + 2
-
-
-
-### Split Combine Population ###
-# This population: pMales & sFemale, pFemale & sMale
-
-
-
-```
-
-### Section 2: Couple Simulation Algorithm
-
-#### Mate Value Calculation Function
-
-```{r}
-
-
-#Mate value calculation#
+### Mate Value Calculation ###
 mvcalc <- function(ideal, traits) {
   #ideal is ideal preferences
   #traits is actual trait values
@@ -266,19 +216,54 @@ mvcalc <- function(ideal, traits) {
   
 }
 
-```
 
-Re-sample Function
 
-```{r}
-#Improved Sampling#
+simCalc <- function(ppPartner, scPartner, pp, sc) {
+  sim <- 0
+  if (!(is.na(scPartner))) {
+    sim <- 10 * (-1 * (dist(rbind(pp[pp$PIN == ppPartner, 18:33],
+                                  sc[sc$PIN == scPartner, 18:33]))) + sqrt(10 ^ 2 * 16)) / sqrt(10 ^ 2 * 16)
+    
+  }
+  
+  return(sim)
+  
+}
+
+
+### T1 and T2 Partner Similarity ###
+partnerSimilarity <- function(pp, sc, random = F) {
+  
+  pp <- pp[complete.cases(pp$modelguess),]
+  
+  partnerSim <- rep(0, nrow(pp))
+  for (p in 1:nrow(pp)) {
+    if (random == F) {
+      ppPartner <- pp$modelguess[p]
+      
+    } else {
+      ppPartner <-
+        pp$modelguess[sample((1:nrow(pp))[pp$sex == pp$sex[p]], 1)]
+    }
+    
+    scPartner <- sc$modelguess[sc$PIN == pp$PIN[p]]
+    
+    partnerSim[p] <- simCalc(ppPartner, scPartner, pp, sc)
+    
+  }
+  return(partnerSim)
+}
+
+
+
+
+
+### Improved Sampling ###
 #A sample function that will return a single scalar if given it
 resample <- function(x,...){if(length(x)==1) x else sample(x,...)} 
 ```
 
-#### Couple Simulation Function
-
-```{r}
+```{r coupleSimulationFunction}
 
 
 #Mate Choice#
@@ -554,219 +539,215 @@ matechoice <- function(females, males, mca = "ram") {
 
 ```
 
-### Section 3: Run PP through Couple Simulation
+### ABM Simulation
 
-```{r}
+```{r simulation}
 
-ppGsa <- matechoice(pFemales, pMales, mca = "gsa")
+models <- apply(expand.grid(c("gsa","ram", "random"), c("Gsa", "Ram", "Random")), 1, function(x) paste(x, collapse = ""))
 
-ppRam <- matechoice(pFemales, pMales, mca = "ram")
-
-ppRandom <- matechoice(pFemales, pMales, mca = "random")
-
-```
-
-### Section 4: Run S/C population through Couple Simulation
-
-```{r}
-
-scGsa1 <- matechoice(pFemales, sMales, "gsa")
-scGsa2 <- matechoice(sFemales, pMales, "gsa")
-scGsa <- rbind(scGsa1, scGsa2)
+modelMeans <- data.frame("loop" = rep(1:partSimLoops, each = length(models)), 
+                         "model" = rep(models, times = partSimLoops), 
+                         "meanSim" = NA, 
+                         "p" = NA)
 
 
-scRam1 <- matechoice(pFemales, sMales, "ram")
-scRam2 <- matechoice(sFemales, pMales, "ram")
-scRam <- rbind(scRam1, scRam2)
 
 
-scRandom1 <- matechoice(pFemales, sMales, "random")
-scRandom2 <- matechoice(sFemales, pMales, "random")
-scRandom <- rbind(scRandom1, scRandom2)
+for(ps in 1:partSimLoops){
+  
+  ### Generate Primary Population ###
+  pMales <- agentGenerate(popsize, 1, hdata[hdata$sex == 1,])
+  pFemales <- agentGenerate(popsize, 0, hdata[hdata$sex == 0,])
+  
+  #Give each agent a unique PIN
+  pMales$PIN <- sample(1:nrow(pMales), nrow(pMales), replace = F)
+  pFemales$PIN <-
+    sample(nrow(pMales):(nrow(pMales) + nrow(pFemales)), nrow(pFemales), replace =
+             F) + 1
+  
+  ### Generate Secondary Population ###
+  sMales <- agentGenerate(popsize, 1, hdata[hdata$sex == 1,])
+  sFemales <- agentGenerate(popsize, 0, hdata[hdata$sex == 0,])
+  
+  #Give each agent a unique PIN
+  sMales$PIN <-
+    sample(1:nrow(sMales), nrow(sMales), replace = F) + (popsize * 2) + 1
+  sFemales$PIN <-
+    sample(nrow(sMales):(nrow(sMales) + nrow(sFemales)), nrow(sFemales), replace =
+             F) + (popsize * 2) + 2
+  
+  
+  
+  
+  
+  # Run couple simulation on all the different populations 
+  ppGsa <- matechoice(pFemales, pMales, mca = "gsa")
+  ppRam <- matechoice(pFemales, pMales, mca = "ram")
+  ppRandom <- matechoice(pFemales, pMales, mca = "random")
+  
+  scGsa1 <- matechoice(pFemales, sMales, "gsa")
+  scGsa2 <- matechoice(sFemales, pMales, "gsa")
+  scGsa <- rbind(scGsa1, scGsa2)
+  
+  
+  scRam1 <- matechoice(pFemales, sMales, "ram")
+  scRam2 <- matechoice(sFemales, pMales, "ram")
+  scRam <- rbind(scRam1, scRam2)
+  
+  
+  scRandom1 <- matechoice(pFemales, sMales, "random")
+  scRandom2 <- matechoice(sFemales, pMales, "random")
+  scRandom <- rbind(scRandom1, scRandom2)
+  
 
+  
+  
+  
+    # gsaGsa; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "gsaGsa"] <-
+    mean(partnerSimilarity(ppGsa, scGsa), na.rm = T)
+  
+  # gsaGsa; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "gsaGsa"] <-
+    mean(mean(partnerSimilarity(ppGsa, scGsa), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppGsa, scGsa, random = T), na.rm = T)))
+  
+  
+  
+  
+    # ramGsa; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "ramGsa"] <-
+    mean(partnerSimilarity(ppRam, scGsa), na.rm = T)
+  
+  # ramGsa; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "ramGsa"] <-
+    mean(mean(partnerSimilarity(ppRam, scGsa), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppRam, scGsa, random = T), na.rm = T)))
+  
+  
+  
+   
+    # randomGsa; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "randomGsa"] <-
+    mean(partnerSimilarity(ppRandom, scGsa), na.rm = T)
+  
+  # randomGsa; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "randomGsa"] <-
+    mean(mean(partnerSimilarity(ppRandom, scGsa), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppRandom, scGsa, random = T), na.rm = T)))
+  
+  
+  
+  
+  # gsaRam; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "gsaRam"] <-
+    mean(partnerSimilarity(ppGsa, scRam), na.rm = T)
+  
+  # gsaRam; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "gsaRam"] <-
+    mean(mean(partnerSimilarity(ppGsa, scRam), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppGsa, scRam, random = T), na.rm = T)))
+  
+  
+  
+     # ramRam; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "ramRam"] <-
+    mean(partnerSimilarity(ppRam, scRam), na.rm = T)
+  
+  # ramRam; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "ramRam"] <-
+    mean(mean(partnerSimilarity(ppRam, scRam), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppRam, scRam, random = T), na.rm = T)))
+  
+  
+  
+  
+  
+      # randomRam; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "randomRam"] <-
+    mean(partnerSimilarity(ppRandom, scRam), na.rm = T)
+  
+  # randomRam; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "randomRam"] <-
+    mean(mean(partnerSimilarity(ppRandom, scRam), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppRandom, scRam, random = T), na.rm = T)))
+  
+  
+  
+  
+      # gsaRandom; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "gsaRandom"] <-
+    mean(partnerSimilarity(ppGsa, scRandom), na.rm = T)
+  
+  # gsaRandom; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "gsaRandom"] <-
+    mean(mean(partnerSimilarity(ppGsa, scRandom), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppGsa, scRandom, random = T), na.rm = T)))
+  
+  
 
-```
-
-### Section 5: Answer Key Questions
-
-1.  Are secondary partners significantly more similar to primary partners than expected by chance
-
-    -   Compare Secondary Partners to Primary Partner
-
-Make Function for these comparisions
-
-```{r}
-
-
-partnerSimilarity <- function(pp, sc, random = F) {
-  partnerSim <- rep(NA, nrow(pp))
-  for (p in 1:nrow(pp)) {
-    if (random == F) {
-      ppPartner <- pp$modelguess[p]
-      
-    } else {
-      ppPartner <-
-        pp$modelguess[sample((1:nrow(pp))[pp$sex == pp$sex[p]], 1)]
-    }
+  
     
-    scPartner <- sc$modelguess[sc$PIN == pp$PIN[p]]
+      # ramRandom; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "ramRandom"] <-
+    mean(partnerSimilarity(ppRam, scRandom), na.rm = T)
+  
+  # ramRandom; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "ramRandom"] <-
+    mean(mean(partnerSimilarity(ppRam, scRandom), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppRam, scRandom, random = T), na.rm = T)))
+  
+  
+  
+  
     
-    if (!(is.na(ppPartner)) & !(is.na(scPartner))) {
-      partnerSim[p] <-
-        dist(rbind(pp[pp$PIN == ppPartner, 18:33],
-                   sc[sc$PIN == scPartner, 18:33]))
-    }
-  }
-  return(partnerSim)
+      # randomRandom; recording mean performance for that loop. 
+  modelMeans$meanSim[modelMeans$loop == ps &
+                       modelMeans$model == "randomRandom"] <-
+    mean(partnerSimilarity(ppRandom, scRandom), na.rm = T)
+  
+  # randomRandom; recording p value for that loop. 
+  modelMeans$p[modelMeans$loop == ps &
+                       modelMeans$model == "randomRandom"] <-
+    mean(mean(partnerSimilarity(ppRandom, scRandom), na.rm = T) <= sapply(1:1000, function(x)
+    mean(partnerSimilarity(ppRandom, scRandom, random = T), na.rm = T)))
+  
+  
 }
+```
+
+### Model Data
+
+```{r modelData}
+
+
+
 
 ```
 
-Compare primary partners & split combine partners:
+### Graphs
 
-Loop partnerSimiliarity for mean. Store pvalues to take proportion of times when gsa, ram etc, is less than .05 --- take count for proportion. & loop through multiple sample sizes (ex. popsize \<- 1000, then 500, 250, etc).
+```{r graphs}
 
-RAM has an "advantage" right now because we are not counting NA
+# statsummary 
 
-```{r}
-
-# loop partnerSImilairies for means
-
-
-##### Primary GSA & Split-Combine GSA #####
-partSimGsaGsa <- partnerSimilarity(ppGsa, scGsa)
-
-partSimGsaGsaNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppGsa, scGsa, random = T), na.rm = T))
-
-pGsaGsa <- mean(mean(partSimGsaGsa) >= partSimGsaGsaNull)
-
-
-
-
-##### Primary GSA & Split-Combine RAM #####
-partSimGsaRam <- partnerSimilarity(ppGsa, scRam)
-
-partSimGsaRamNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppGsa, scRam, random = T), na.rm = T))
-
-pGsaRam <- mean(mean(partSimGsaRam, na.rm = T) >= partSimGsaRamNull)
-
-
-
-
-##### Primary GSA & Split-Combine Random #####
-partSimGsaRandom <- partnerSimilarity(ppGsa, scRandom)
-
-partSimGsaRandomNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppGsa, scRandom, random = T), na.rm = T))
-
-pGsaRandom <-
-  mean(mean(partSimGsaRandom, na.rm = T) >= partSimGsaRandomNull)
-
-
-
-
-##### Primary RAM & Split-Combine GSA #####
-partSimRamGsa <- partnerSimilarity(ppRam, scGsa)
-
-partSimRamGsaNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppRam, scGsa, random = T), na.rm = T))
-
-pRamGsa <- mean(mean(partSimRamGsa, na.rm = T) >= partSimRamGsaNull)
-
-
-
-
-
-##### Primary RAM & Split-Combine RAM #####
-partSimRamRam <- partnerSimilarity(ppRam, scRam)
-
-partSimRamRamNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppRam, scRam, random = T), na.rm = T))
-
-pRamRam <- mean(mean(partSimRamRam, na.rm = T) >= partSimRamRamNull)
-
-
-
-
-##### Primary RAM & Split-Combine Random #####
-partSimRamRandom <- partnerSimilarity(ppRam, scRandom)
-
-partSimRamRandomNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppRam, scRandom, random = T), na.rm = T))
-
-pRamRandom <-
-  mean(mean(partSimRamRandom, na.rm = T) >= partSimRamRandomNull)
-
-
-
-
-##### Primary Random & Split-Combine GSA #####
-partSimRandomGsa <- partnerSimilarity(ppRandom, scGsa)
-
-partSimRandomGsaNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppRandom, scGsa, random = T), na.rm = T))
-
-pRandomGsa <-
-  mean(mean(partSimRandomGsa, na.rm = T) >= partSimRandomGsaNull)
-
-
-
-
-##### Primary Random & Split-Combine RAM #####
-partSimRandomRam <- partnerSimilarity(ppRandom, scRam)
-
-
-partSimRandomRamNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppRandom, scRam, random = T), na.rm = T))
-
-pRandomRam <-
-  mean(mean(partSimRandomRam, na.rm = T) >= partSimRandomRamNull)
-
-
-
-
-##### Primary Random & Split-Combine Random #####
-partSimRandomRandom <- partnerSimilarity(ppRandom, scRandom)
-
-partSimRandomRandomNull <- sapply(1:10000, function(x)
-  mean(partnerSimilarity(ppRandom, scRandom, random = T), na.rm = T))
-
-pRandomRandom <-
-  mean(mean(partSimRandomRandom, na.rm = T) >= partSimRandomRandomNull)
 
 ```
 
 ### 
-
-### Graphs
-
-```{r}
-
-# graph how well each cs model matches partners from time 1 to time 2. Matching is defined by how correlated t1 partners traits are to t2 partners. 
-
-
-meanPartSimGsaGsa <- mean(partnerSimilarity(ppGsa, scGsa))
-meanPartSimGsaRam <- mean(partnerSimilarity(ppGsa, scRam), na.rm = T)
-meanPartSimGsaRandom <- mean(partnerSimilarity(ppGsa, scRandom))
-
-meanPartSimRamGsa <- mean(partnerSimilarity(ppRam, scGsa), na.rm = T)
-meanPartSimRamRam <- mean(partnerSimilarity(ppRam, scRam), na.rm = T)
-meanPartSimRamRandom <- mean(partnerSimilarity(ppRam, scRandom), na.rm = T)
-
-meanPartSimRandomGsa <- mean(partnerSimilarity(ppRandom, scGsa))
-meanPartSimRandomRam <- mean(partnerSimilarity(ppRandom, scRam), na.rm = T)
-meanPartSimRandomRandom <- mean(partnerSimilarity(ppRandom, scRandom))
-
-modelMeans <- t(data.frame("gsaGsa" = meanPartSimGsaGsa, 
-           "gsaRam" = meanPartSimGsaRam, 
-           "gsaRandom" = meanPartSimGsaRandom, 
-           "ramGsa" = meanPartSimRamGsa, 
-           "ramRam" = meanPartSimRamRam, 
-           "ramRandom" = meanPartSimRamRandom, 
-           "randomGsa" = meanPartSimRandomGsa, 
-           "randomRam" = meanPartSimRandomRam, 
-           "randomRandom" = meanPartSimRandomRandom))
-
-```
