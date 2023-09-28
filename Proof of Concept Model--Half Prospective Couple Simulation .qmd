@@ -141,10 +141,10 @@ hdata <- hdata[complete.cases(hdata[, c(10:25, 26:41)]), ]
 ```{r parameters}
 
 # Pop size 
-popsize <- nrow(hdata)
+popsize <- 500
 
 # model loops
-partSimLoops <- 30
+partSimLoops <- 5
 
 ```
 
@@ -220,7 +220,7 @@ mvcalc <- function(ideal, traits) {
 
 simCalc <- function(ppPartner, scPartner, pp, sc) {
   sim <- 0
-  if (!(is.na(scPartner))) {
+  if (!(is.na(ppPartner))) {
     sim <- 10 * (-1 * (dist(rbind(pp[pp$PIN == ppPartner, 18:33],
                                   sc[sc$PIN == scPartner, 18:33]))) + sqrt(10 ^ 2 * 16)) / sqrt(10 ^ 2 * 16)
     
@@ -234,21 +234,24 @@ simCalc <- function(ppPartner, scPartner, pp, sc) {
 ### T1 and T2 Partner Similarity ###
 partnerSimilarity <- function(pp, sc, random = F) {
   
-  pp <- pp[complete.cases(pp$modelguess),]
+  # identify 
+  scRepeat <- sc[sc$PIN %in% pp$PIN, ]
+  scRepeat <- scRepeat[complete.cases(scRepeat$modelguess), ]
   
-  partnerSim <- rep(0, nrow(pp))
-  for (p in 1:nrow(pp)) {
+  
+  partnerSim <- rep(0, nrow(scRepeat))
+  for (p in 1:nrow(scRepeat)) {
     if (random == F) {
-      ppPartner <- pp$modelguess[p]
+      scRepeatPartner <- scRepeat$modelguess[p]
       
     } else {
-      ppPartner <-
-        pp$modelguess[sample((1:nrow(pp))[pp$sex == pp$sex[p]], 1)]
+      scRepeatPartner <-
+        scRepeat$modelguess[sample((1:nrow(scRepeat))[scRepeat$sex == scRepeat$sex[p]], 1)]
     }
     
-    scPartner <- sc$modelguess[sc$PIN == pp$PIN[p]]
+    ppPartner <- pp$modelguess[sc$PIN == scRepeat$PIN[p]]
     
-    partnerSim[p] <- simCalc(ppPartner, scPartner, pp, sc)
+    partnerSim[p] <- simCalc(ppPartner, scRepeatPartner, pp, sc)
     
   }
   return(partnerSim)
@@ -410,82 +413,97 @@ matechoice <- function(females, males, mca = "ram") {
   
   if (mca == "ram") {
     #A blank dataframe for storing the paired couples
-    pairs <- matrix(, 1, (ncol(males) + ncol(females)))
+    pairs <- matrix(NA, 1, (ncol(males) + ncol(females)))
     pairs <- as.data.frame(pairs)
     
     #Name the pairs dataframe for cbinding
     colnames(pairs) <- c(colnames(females), colnames(males))
     
-    #A matrix for storing how much investment each agent sends to each potential mate
-    #Start with how attracted each agent is to each potential mate
-    maleinvestprops <- maleattmatrix
-    femaleinvestprops <- femaleattmatrix
-    
-    maleinvestprops <-
-      t(apply(maleinvestprops, 1, function(x)
-        x * (10 / sum(x))))
-    femaleinvestprops <-
-      t(apply(femaleinvestprops, 1, function(x)
-        x * (10 / sum(x))))
-    
-    #Loop through 100 timesteps for courtship
-    for (c in 1:100) {
-      #How much investment each male agent received from each female agent in the previous timestep
-      maleinvestpropr <- t(femaleinvestprops)
-      
-      #How much investment each female agent received from each male agent in the previous timestep
-      femaleinvestpropr <- t(maleinvestprops)
-      
-      #Calculate how much investment each agent will send in this round.
-      #Investment after the first round is proportional to the mutual investment in the previous round
-      maleinvestprops <- maleinvestprops * maleinvestpropr
-      femaleinvestprops <- femaleinvestprops * femaleinvestpropr
-      
-      maleinvestprops <-
-        t(apply(maleinvestprops, 1, function(x)
-          x * (10 / sum(x))))
-      femaleinvestprops <-
-        t(apply(femaleinvestprops, 1, function(x)
-          x * (10 / sum(x))))
-      
-      #Some models can produce NaNs. This just converts these to 0
-      maleinvestprops[is.nan(maleinvestprops)] <- 0
-      femaleinvestprops[is.nan(femaleinvestprops)] <- 0
-    }
-    
-    #Determine which female each male has chosen
-    mchoice <- data.frame("male" = 1:nrow(males))
-    mchoice$choice <-
-      apply(maleinvestprops, 1, function(x)
-        resample(which.max(x), 1))
-    
-    #Determine which male each female has chosen
-    fchoice <- data.frame("female" = 1:nrow(females))
-    fchoice$choice <-
-      apply(femaleinvestprops, 1, function(x)
-        resample(which.max(x), 1))
-    
-    #Loop through females' choices
-    for (p in 1:nrow(fchoice)) {
-      #Determine the male chosen by the current focal female
-      chosenmale <- fchoice$choice[p]
-      
-      #Determine the female chosen by the focal female's choice
-      chosenfemale <- mchoice$choice[chosenmale]
-      
-      #If the chosen female is the focal female...
-      if (chosenfemale == p) {
-        #Pair the male and female together
-        pairs <-
-          rbind(pairs, cbind(females[p,], males[chosenmale,]))
-      }
-      
-      #Otherwise do nothing
-      
-    }
-    
     #Remove the row of NAs from the pairs dataframe
     pairs <- pairs[-1,]
+    
+    
+    while (nrow(pairs) < nrow(pFemales)) {
+      #Identify unpaired males and feamles
+      singleFemales <- females[!(females$PIN %in% pairs[, 34]), ]
+      singleMales <- males[!(males$PIN %in% pairs[, 68]), ]
+      
+      if (nrow(singleFemales) > 1) {
+        #A matrix for storing how much investment each agent sends to each potential mate
+        #Start with how attracted each agent is to each potential mate
+        maleinvestprops <-
+          maleattmatrix[(males$PIN %in% singleMales$PIN), (females$PIN %in% singleFemales$PIN)]
+        femaleinvestprops <-
+          femaleattmatrix[(females$PIN %in% singleFemales$PIN), (males$PIN %in% singleMales$PIN)]
+        
+        maleinvestprops <-
+          t(apply(maleinvestprops, 1, function(x)
+            x * (10 / sum(x))))
+        
+        femaleinvestprops <-
+          t(apply(femaleinvestprops, 1, function(x)
+            x * (10 / sum(x))))
+        
+        #Loop through 100 timesteps for courtship
+        for (c in 1:100) {
+          #How much investment each male agent received from each female agent in the previous timestep
+          maleinvestpropr <- t(femaleinvestprops)
+          
+          #How much investment each female agent received from each male agent in the previous timestep
+          femaleinvestpropr <- t(maleinvestprops)
+          
+          #Calculate how much investment each agent will send in this round.
+          #Investment after the first round is proportional to the mutual investment in the previous round
+          maleinvestprops <- maleinvestprops * maleinvestpropr
+          femaleinvestprops <- femaleinvestprops * femaleinvestpropr
+          
+          maleinvestprops <-
+            t(apply(maleinvestprops, 1, function(x)
+              x * (10 / sum(x))))
+          femaleinvestprops <-
+            t(apply(femaleinvestprops, 1, function(x)
+              x * (10 / sum(x))))
+          
+          #Some models can produce NaNs. This just converts these to 0
+          maleinvestprops[is.nan(maleinvestprops)] <- 0
+          femaleinvestprops[is.nan(femaleinvestprops)] <- 0
+        }
+        
+        #Determine which female each male has chosen
+        mchoice <- data.frame("male" = 1:nrow(singleMales))
+        mchoice$choice <-
+          apply(maleinvestprops, 1, function(x)
+            resample(which.max(x), 1))
+        
+        #Determine which male each female has chosen
+        fchoice <- data.frame("female" = 1:nrow(singleFemales))
+        fchoice$choice <-
+          apply(femaleinvestprops, 1, function(x)
+            resample(which.max(x), 1))
+        
+        #Loop through females' choices
+        for (p in 1:nrow(fchoice)) {
+          #Determine the male chosen by the current focal female
+          chosenmale <- fchoice$choice[p]
+          
+          #Determine the female chosen by the focal female's choice
+          chosenfemale <- mchoice$choice[chosenmale]
+          
+          #If the chosen female is the focal female...
+          if (chosenfemale == p) {
+            #Pair the male and female together
+            pairs <-
+              rbind(pairs, cbind(singleFemales[p, ], singleMales[chosenmale, ]))
+          }
+          
+          #Otherwise do nothing
+          
+        }
+      } else{
+        pairs <- rbind(pairs, cbind(singleFemales, singleMales))
+      }
+      
+    }
     
     #Determine the PINs of all guessed pairs
     modelrels <-
@@ -505,8 +523,6 @@ matechoice <- function(females, males, mca = "ram") {
     data2 <- rbind(females, males)
     
   }
-  
-  
   
   
   
@@ -736,7 +752,7 @@ for(ps in 1:partSimLoops){
 
 ```{r modelData}
 
-
+write.csv(modelMeans, file = "HpcsCmclData.csv")
 
 
 ```
