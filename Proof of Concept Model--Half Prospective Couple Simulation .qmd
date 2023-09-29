@@ -119,6 +119,8 @@ Sections:
 ```{r library}
 
 library(ggplot2)
+library(tidyr)
+library(dplyr)
 ```
 
 ### Human Data
@@ -145,7 +147,7 @@ popsize <- 1000
 
 # model loops
 partSimLoops <- 10
-
+  
 ```
 
 ### Functions
@@ -656,7 +658,7 @@ for(ps in 1:partSimLoops){
 
 ```{r modelData}
 
-write.csv(modelMeans, file = "HpcsCmclData.csv")
+write.csv(modelMeans, file = paste0("HpcsCmclData", Sys.time(), ".csv"))
 
 
 ```
@@ -665,7 +667,20 @@ write.csv(modelMeans, file = "HpcsCmclData.csv")
 
 ```{r graphs}
 
-# statsummary 
+
+modelMeansPlot <- ggplot(data = modelMeans, 
+                         aes(x = secondaryModel,
+                             y = meanSim,
+                             fill = primaryModel)) +
+  stat_summary(fun = mean,
+               geom = "bar",
+               position = "dodge") +
+  labs(title = "HPCS proof-of-concept results", 
+       subtitle = "Mean partner similarities for mate choice model combinations", 
+       x = "True Mate Choice (T2 mate choice models)",
+       y = "Mean Partner Similarities (1 = identical)", 
+       fill = "Predicted Mate Choice\n(T1 mate choice models)")
+
 
 ```
 
