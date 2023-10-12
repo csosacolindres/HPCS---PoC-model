@@ -664,6 +664,8 @@ for(ps in 1:partSimLoops){
 
 write.csv(modelMeans, file = paste0("HpcsCmclData", Sys.time(), ".csv"))
 
+mean(modelMeans$p[modelMeans$secondaryModel=="ram" & modelMeans$primaryModel=="ram"] <.05)
+
 
 ```
 
@@ -673,8 +675,6 @@ write.csv(modelMeans, file = paste0("HpcsCmclData", Sys.time(), ".csv"))
 
 # limit to only RAM and Random 
 # change plot data to just include Ram and random 
-cbp1 <- c("#0072B2", "#999999", "#E69F00", "#56B4E9", "#009E73",
-          "#F0E442", "#D55E00", "#CC79A7")
 # fix the range of y axis from .0 to 1 not .8
 plotdata<-modelMeans[modelMeans$primaryModel=="random"|modelMeans$primaryModel=="ram",]
 plotdata<-plotdata[plotdata$secondaryModel=="random"|plotdata$secondaryModel=="ram",]
@@ -711,28 +711,4 @@ modelMeansPlot <- ggplot(data = plotdata,
 ggsave("NSF GRFP POC.jpeg", plot=modelMeansPlot, width=150, height=100, units="mm", path ="/Users/is/Desktop/Proof-of-Concept-Model", scale = 1, dpi=300, limitsize=TRUE)
   
   
-
-
-```
-
-### 
-
-```{r other}
-
-# gpower
-
-library(pwr)
-
-# how many participants will i need? Using "Predictive Validity of Partners Preferences" in Gerlach et al. (2019)
-pwr.t.test(d = .2, sig.level = .05, power = .8)
-pwr.t.test(n = 1000, sig.level = .05, power = .8)
-
-# 33.8% of T2 partners coupled
-394/.3381
-
-# 49.45% of participants responded both T1 and T2
-1166/.4945
-
-# Total sample size per group I need to collect: 
-2358
 ```
