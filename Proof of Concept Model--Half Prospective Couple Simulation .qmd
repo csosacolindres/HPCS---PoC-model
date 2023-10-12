@@ -147,10 +147,10 @@ hdata <- hdata[complete.cases(hdata[, c(10:25, 26:41)]), ]
 ```{r parameters}
 
 # Pop size 
-popsize <- 1000
+popsize <- 100
 
 # model loops
-partSimLoops <- 10
+partSimLoops <- 30
   
 ```
 
@@ -662,7 +662,7 @@ for(ps in 1:partSimLoops){
 
 ```{r modelData}
 
-write.csv(modelMeans, file = paste0("HpcsCmclData", Sys.time(), ".csv"))
+# write.csv(modelMeans, file = paste0("HpcsCmclData", Sys.time(), ".csv"))
 
 mean(modelMeans$p[modelMeans$secondaryModel=="ram" & modelMeans$primaryModel=="ram"] <.05)
 
@@ -676,35 +676,33 @@ mean(modelMeans$p[modelMeans$secondaryModel=="ram" & modelMeans$primaryModel=="r
 # limit to only RAM and Random 
 # change plot data to just include Ram and random 
 # fix the range of y axis from .0 to 1 not .8
-plotdata<-modelMeans[modelMeans$primaryModel=="random"|modelMeans$primaryModel=="ram",]
-plotdata<-plotdata[plotdata$secondaryModel=="random"|plotdata$secondaryModel=="ram",]
+plotData<-modelMeans[modelMeans$primaryModel=="random"|modelMeans$primaryModel=="ram",]
+plotData<-plotData[plotData$secondaryModel=="ram",]
+plotData$primaryModel<-factor(plotData$primaryModel,levels=c("random","ram"))
 
-modelMeansPlot <- ggplot(data = plotdata, 
-                         aes(x = secondaryModel,
+t1<-t.test(plotData$meanSim~plotData$primaryModel)
+
+modelMeansPlot <- ggplot(data = plotData, 
+                         aes(x = primaryModel,
                              y = meanSim,
                              fill = primaryModel)) +
   stat_summary(fun = mean,
                geom = "bar",
                position = "dodge") +
   labs(title = "Proof-of-Concept Model Results", 
-       x = "Mate Choice Model at Time 2", 
-       y = "Partner Similarity (Time 2 - Time 1)", 
-       fill = "Mate Choice\nModel at\nTime 1") +
+       x = "Mate Choice Model", 
+       y = "Similarity (Chosen vs. Predicted Partner)") +
   theme_minimal(base_size = 15) +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, .2, .4, .6, .8, 1.0)) +
-  scale_fill_manual(labels = c("RAM","Random"),
-                    values= c("#00798c", "#edae46")) +
+  theme(legend.position="none")+
+  scale_fill_manual(values= c("#edae46", "#00798c")) +
+  stat_summary(fun.data=mean_cl_normal,position="dodge",geom="errorbar")+
   geom_signif(
-    annotation = "**",
-    y_position = .85, xmin = .7, xmax = 1.3,
-    tip_length = c(0, 0),size = 0.6,
-    textsize = 7) +
-  geom_signif(
-    annotation = "N.S.",
-    y_position = .80, xmin = 1.7, xmax = 2.3,
+    annotation = "***",
+    y_position = .85, xmin = 1, xmax = 2,
     tip_length = c(0, 0),size = 0.6,
     textsize = 5) +
-  scale_x_discrete(labels = c("RAM", "Random"))
+  scale_x_discrete(labels = c("Random Prediction","RAM Prediction"))+
+  coord_cartesian(ylim=c(.7,1))
 
 
 #save plot
