@@ -1,6 +1,8 @@
 ---
-title: "Proof-of-Concept Model: Half-Prospective Couple Simulation"
-format: html
+title: "Half-Prospective Couple Simulation: Proof-of-concept model"
+format: 
+  html:
+    page-layout: full
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -8,113 +10,15 @@ editor_options:
 
 # Half-Prospective Couple Simulation: Proof-of-Concept Model
 
-## Background
+## Background:
 
-Couple Simulation might be able to predict who people will end up with (maybe *should* end up with). However, as it stands right now, couple simulation has only been retrospective---that is, has only reconstructed relationships that already exist.
+As it stands, couple simulation has only been used to reproduce couples that already exist. However, it has been established that people adjust their preferences to more closely match the partners they have already chosen. Therefore, this retrospective approach cannot tell us how well these models *predict* the future choices a person will make. However, while ideal, a fully prospective couple simulation study would require longitudinal sampling from an isolated mating market of single people---a logistically and ethically challenging study design. **I propose a solution to this limitation in the form of a novel study design:** *half*-prospective couple simulation (HPCS), illustrated below.
 
-Constructing a Prospective Couple Simulation study would be challenging with less-than-it's-worth gains: You'd need to design a longitudinal study with a closed mating market; longitudinal studies have high attrition, and closed mating markets (like isolated societies, retirement homes, etc) are unrepresentative and rare. Stacking on to the logistical challenges, replication would be challenging for any other researcher attempting to replicate the findings. However, this may be an inverted U problem where the solution to "what study design is ideal given the circumstances?" lies somewhere in the middle.
+![](NSF%20Writing/Study%20Design%20Graphic.png){fig-align="center" width="598"}
 
-A Half-Prospective Couple Simulation could serve to mitigate the challenges of a full Prospective Couple Simulation. Here we can compare alternative models (Random, GSA, RAM) to prospectively predict the *KINDS* of partners people choose. This design is cheaper, easier, and reproducible---it does not require a closed market, or dyadic data so gathering a large uncoupled population can help attrition rates.
+To assess the viability of this novel study design, I built a proof-of-concept agent-based model that simulates applying an HPCS design to a realistic sample. To create this model, I used a sample of real human data to create simulated agents with realistic mate preferences and traits (e.g., ambitious, caring, etc.). Specifically, I simulated a population of single agents which then choose mates using the resource allocation model (RAM), a reciprocity model that has proven successful in prior research. This provides me a prediction of the kindsof partners each agent *would* choose according to RAM. Next, I generated a second population of single agents and simulated the first population of agents choosing mates within the second population according to either RAM or random mate choice for comparison. Finally, I compared the traits of each agent's first mate choice to the traits of their second mate choice, which simulates comparing participants' actual T2 partners to their predicted T1 partners.
 
-What is a Half-Prospective Couple Simulation?
-
-![](images/Screenshot%202023-07-18%20at%201.13.15%20PM.png)
-
-### The Proof-of-Concept Model:
-
-To test whether in fact a Half-Prospective Couple Simulation could be a good alternative to a full Prospective Couple Simulation, we need to construct a proof-of-concept model.
-
-What is the Proof-of-Concept Model for the Half-Prospective Couple Simulation design?
-
-![](images/Screenshot%202023-07-18%20at%201.22.50%20PM.png)
-
-Here, the key questions are:
-
-1.  Are secondary partners significantly more similar to primary partners than expected by chance?
-
-2.  Does this not happen when choice is random with respect to preferences?
-
-3.  Are matches significantly more similar when the secondary mate choice model matches the primary?
-
-### Model Outline:
-
-Sections:
-
-1.  Create all populations
-
-    -   Primary Population
-
-        -   PP Male & PP Female
-
-    -   Secondary Population
-
-        -   SP Male & SP Female
-
-    -   Split/Combine Populations
-
-        -   PP Male & SP Female
-
-        -   PP Female & SP Male
-
-2.  Construct the Couple Simulation Algorithm
-
-3.  Run PP through Couple Simulation
-
-    -   Save data on
-
-        -   Couples that form
-
-        -   Agents' traits
-
-4.  Run S/C populations through Couple Simulation
-
-    -   Save data on
-
-        -   Couples that form
-
-        -   Agents' traits
-
-5.  Answer Key Questions
-
-    1.  Are secondary partners significantly more similar to primary partners than expected by chance?
-
-        -   Compare Secondary Partners to Primary Partners
-        -   What does the difference / distance mean for \^ ?
-            -   permutation test
-
-    2.  Does this not happen when choice is random with respect to preferences?
-
-        -   Compare Couple Simulation models (Random, GSA, RAM)
-
-            -   Random vs. GSA
-
-            -   Random vs. RAM
-
-    3.  Are matches significantly more similar when the secondary mate choice model matches the primary?
-
-        -   Compare Combinations of Couple Simulation Models
-
-            -   PP CS using Random & S/C CS using Random
-
-            -   PP CS using Random & S/C CS using GSA
-
-            -   PP CS using Random & S/C CS using RAM
-
-            -   PP CS using GSA & S/C CS using Random
-
-            -   PP CS using GSA & S/C CS using GSA
-
-            -   PP CS using GSA & S/C CS using RAM
-
-            -   PP CS using RAM & S/C CS using Random
-
-            -   PP CS using RAM & S/C CS using GSA
-
-            -   PP CS using RAM & S/C CS using RAM
-
-What is the smallest size i could do from my model that gives me sig effect.
-
-## HPCS PoC model
+## Model
 
 ### Library
 
@@ -130,14 +34,14 @@ library(ggsignif)
 ### Human Data
 
 ```{r humanData}
-#Human Data#
-#Load in the human data for parameterizing agents
+
+# Load in the human data for parameterizing agents
 hdata <- read.csv("CAREER1 PROCESSED Data 01172020 104258.csv")
 
-#Remove unnecessary columns from the human data
+# Remove unnecessary columns from the human data
 hdata <- hdata[, c(1, 3:10, 235:250, 345:360)]
 
-#Make sure there's no missing information
+# Make sure there's no missing information
 hdata <- hdata[complete.cases(hdata[, c(10:25, 26:41)]), ]
 
 ```
@@ -146,19 +50,19 @@ hdata <- hdata[complete.cases(hdata[, c(10:25, 26:41)]), ]
 
 ```{r parameters}
 
-# Pop size 
+# The population size 
 popsize <- 100
 
-# model loops
+# The number of model loops I want to run
 partSimLoops <- 30
   
 ```
 
-### Functions
+### Custom Functions
 
-```{r functions}
+```{r agentGeneration}
 
-### Agent Generation ####
+# Create the agents: 
 agentGenerate <- function(popsize, sex, data) {
   #Generate agents with trait and preferences by resampling from the human data
   agents <- apply(data[, c(10:25, 26:41)], 2, function(x)
@@ -200,11 +104,10 @@ agentGenerate <- function(popsize, sex, data) {
   return(as.data.frame(cbind(sex, agents)))
 }
 
+```
 
+```{r mateValueCalculation}
 
-
-
-### Mate Value Calculation ###
 mvcalc <- function(ideal, traits) {
   #ideal is ideal preferences
   #traits is actual trait values
@@ -224,45 +127,55 @@ mvcalc <- function(ideal, traits) {
 
 
 
+```
+
+```{r similarityCalculation}
+
+### Calculates similarities betweeen pp and sc partners using the euclidean distance formula
 simCalc <- function(ppPartner, scPartner, pp, sc) {
-  
   sim <- 0
   
+  # if there are no NA values in ppPartner, take the distance between partners. 
   if (!is.na(ppPartner)) {
-    
     sim <- (-1 * (dist(rbind(pp[pp$PIN == ppPartner, 18:33],
                              sc[sc$PIN == scPartner, 18:33]))) +
               sqrt(10 ^ 2 * 16)) / sqrt(10 ^ 2 * 16)
     
   }
-  
   return(sim)
-  
 }
 
 
 
-### T1 and T2 Partner Similarity ###
-partnerSimilarity <- function(pp, sc, random = F) {
-  
-  # identify 
-  scRepeat <- sc[sc$PIN %in% pp$PIN, ]
 
+### T2 and T1 Partner Similarity ###
+partnerSimilarity <- function(pp, sc, random = F) {
+  # Find which sc PINs are the same as pp PINs (this happens with sc populations by primary x secondary & secondary x primary combos) 
+  scRepeat <- sc[sc$PIN %in% pp$PIN,]
+  
+  # Create a vector the size of the number of rows there are of the number of repeat PINs (scRepeat)
   partnerSim <- rep(0, nrow(scRepeat))
   
+  # loop the number of repeat PINs that there are. 
   for (p in 1:nrow(scRepeat)) {
-    
+    # the standard protocal: 
+    # if "random" in the partnerSimilarity function is FALSE: 
     if (random == F) {
+      
+      # loop through scRepeat's modelguesses in the number of times there are repeat PINs and call that scRepeatPartner
       scRepeatPartner <- scRepeat$modelguess[p]
       
+      # However, if "random" == T, scRepeat's modelguess will be a random person the same sex as scRepeat. 
     } else {
+      # For the p value calculation
       scRepeatPartner <-
         scRepeat$modelguess[sample((1:nrow(scRepeat))[scRepeat$sex == scRepeat$sex[p]], 1)]
       
     }
-    
+    # define ppPartner as the primary populations modelguess
     ppPartner <- pp$modelguess[pp$PIN == scRepeat$PIN[p]]
     
+    # take the similarity calculation between ppPartner and scRepeat partner. 
     partnerSim[p] <- simCalc(ppPartner, scRepeatPartner, pp, sc)
     
   }
@@ -271,15 +184,21 @@ partnerSimilarity <- function(pp, sc, random = F) {
 
 
 
+```
 
+```{r improvedSampling}
 
 ### Improved Sampling ###
 #A sample function that will return a single scalar if given it
-resample <- function(x,...){if(length(x)==1) x else sample(x,...)} 
+resample <- function(x, ...) {
+  if (length(x) == 1)
+    x
+  else
+    sample(x, ...)
+} 
 ```
 
-```{r coupleSimulationFunction}
-
+```{r mateChoice}
 
 #Mate Choice#
 matechoice <- function(females, males, mca = "ram") {
@@ -337,10 +256,10 @@ matechoice <- function(females, males, mca = "ram") {
       focalmale <- which(mpartner == 0)[1]
       
       #Pulls out his attractions
-      focalmaleatts <- maleattmatrix[focalmale, ]
+      focalmaleatts <- maleattmatrix[focalmale,]
       
       #Determines which females have already rejected him
-      focalmalerejections <- mrejected[focalmale, ]
+      focalmalerejections <- mrejected[focalmale,]
       
       #If there is still a female left who has not rejected the focal male...
       if (sum(focalmalerejections) < nrow(females)) {
@@ -389,11 +308,11 @@ matechoice <- function(females, males, mca = "ram") {
     for (p in 1:length(mpartner)) {
       #Pair each male with his chosen female
       pairs <-
-        rbind(pairs, cbind(females[mpartner[p], ], males[p, ]))
+        rbind(pairs, cbind(females[mpartner[p],], males[p,]))
     }
     
     #Remove the row of NAs from the pairs dataframe
-    pairs <- pairs[-1, ]
+    pairs <- pairs[-1,]
     
     
     #Determine the PINs of all guessed pairs
@@ -432,13 +351,13 @@ matechoice <- function(females, males, mca = "ram") {
     colnames(pairs) <- c(colnames(females), colnames(males))
     
     #Remove the row of NAs from the pairs dataframe
-    pairs <- pairs[-1,]
+    pairs <- pairs[-1, ]
     
     
     while (nrow(pairs) < nrow(pFemales)) {
       #Identify unpaired males and feamles
-      singleFemales <- females[!(females$PIN %in% pairs[, 34]), ]
-      singleMales <- males[!(males$PIN %in% pairs[, 68]), ]
+      singleFemales <- females[!(females$PIN %in% pairs[, 34]),]
+      singleMales <- males[!(males$PIN %in% pairs[, 68]),]
       
       if (nrow(singleFemales) > 1) {
         #A matrix for storing how much investment each agent sends to each potential mate
@@ -505,7 +424,7 @@ matechoice <- function(females, males, mca = "ram") {
           if (chosenfemale == p) {
             #Pair the male and female together
             pairs <-
-              rbind(pairs, cbind(singleFemales[p, ], singleMales[chosenmale, ]))
+              rbind(pairs, cbind(singleFemales[p,], singleMales[chosenmale,]))
           }
           
           #Otherwise do nothing
@@ -558,6 +477,7 @@ matechoice <- function(females, males, mca = "ram") {
   
   
   
+  
   #Compile all the outputs
   output <- data2
   
@@ -567,10 +487,10 @@ matechoice <- function(females, males, mca = "ram") {
 
 ```
 
-### ABM Simulation
+### Simulation
 
 ```{r simulation}
-# Take out GSA to make only RAM and Random mate choice models 
+
 models <- c("random","gsa","ram")
 
 modelMeans <- data.frame("loop" = rep(1:partSimLoops, each = length(models)^2),
@@ -608,12 +528,17 @@ for(ps in 1:partSimLoops){
   
   
   # Run couple simulation on all the different populations 
+  # "lapply" assumes "models <- c(random, gsa, ram)" vector is a list. 
+  # "matechoice" populates "models" with data frames (data2 <- rbind(females, males))
+  # "function(x)" loops through elements in "models" and fills in "matechoice" "mca=" condition with "random", "gsa", and "ram".
+  # This creates a list called "ppPairs" that has "matechoice" dataframes for "random", "gsa", and "ram" mate choice models. 
   ppPairs<-lapply(models,function(x)
     matechoice(pFemales,pMales,mca=x)
     )
-  
+  # The elements in the ppPairs list do not have names, so let's name them "random", "gsa", and "ram". 
   names(ppPairs)<-models
   
+  # same as above, except this rbinds 2 matechoice dataframes to deal with the ps and sp combinations. 
   scPairs<-lapply(models,function(x)
     rbind(matechoice(pFemales,sMales,x),
           matechoice(sFemales,pMales,x))
@@ -628,19 +553,18 @@ for(ps in 1:partSimLoops){
   
   for(c in 1:nrow(modelCombos)){
     
-    #Identify the primary and secondary models for this combination
+    # Pick the primary and secondary models from combo of models. 
     primary<-modelCombos[c,1]
     secondary<-modelCombos[c,2]
     
-    
-    modelMeans$meanSim[modelMeans$loop == ps &
-                         modelMeans$primaryModel==primary &
-                         modelMeans$secondaryModel==secondary]<-
-      mean(partnerSimilarity(ppPairs[[primary]],
-                             scPairs[[secondary]]))
-    
+    # take the means of the partner similarities of the primary model's pp dataframe (where we keep all of agents' data including modelguess) and the secondary model's sc dataframe. Put that into the meanSim column of modelmeans dataframe, when the loop, primary model, and secondary model match the corresponding loop, primary and secondary model. 
+    modelMeans$meanSim[modelMeans$loop == ps & 
+                         modelMeans$primaryModel==primary & 
+                         modelMeans$secondaryModel==secondary] <- 
+      mean(partnerSimilarity(ppPairs[[primary]], scPairs[[secondary]]))
     
     
+    # do the same thing as ^ but this time compare it to a random distribution of corresponding populations to get the p values. 
     modelMeans$p[modelMeans$loop == ps &
                          modelMeans$primaryModel==primary &
                          modelMeans$secondaryModel==secondary]<-
@@ -702,11 +626,11 @@ modelMeansPlot <- ggplot(data = plotData,
     tip_length = c(0, 0),size = 0.6,
     textsize = 5) +
   scale_x_discrete(labels = c("Random Prediction","RAM Prediction"))+
-  coord_cartesian(ylim=c(.7,1))
+  coord_cartesian(ylim=c(.7,.9))
 
 
 #save plot
-ggsave("NSF GRFP POC.jpeg", plot=modelMeansPlot, width=150, height=100, units="mm", path ="/Users/is/Desktop/Proof-of-Concept-Model", scale = 1, dpi=300, limitsize=TRUE)
+ggsave("NSF GRFP POC.jpeg", plot=modelMeansPlot, width=175, height=125, units="mm", path ="/Users/is/Desktop/Proof-of-Concept-Model", scale = 1, dpi=300, limitsize=TRUE)
   
   
 ```
